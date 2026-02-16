@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { SidebarItem } from '../types';
 
 interface SavedConfig {
@@ -20,11 +20,22 @@ interface SidebarProps {
     onAddItem: () => void;
     onRemoveItem: (id: string) => void;
     onUpdateItem: (id: string, newTitle: string) => void;
+    onReorderItems: (fromIndex: number, toIndex: number) => void;
     onSaveLayout: (name: string) => void;
     onLoadLayout: (state: { projectTitle: string; sidebarItems: SidebarItem[]; activeSidebarItemId: string | null; activeCategoryId: string | null }) => void;
+    onExport: () => void;
+    onImport: () => void;
+    onPrint: () => void;
+    onOpenSearch: () => void;
+    theme: 'light' | 'dark';
+    onToggleTheme: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
+    onUndo: () => void;
+    onRedo: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
     projectTitle,
     onUpdateTitle,
     items,
@@ -33,26 +44,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onAddItem,
     onRemoveItem,
     onUpdateItem,
+    onReorderItems,
     onSaveLayout,
-    onLoadLayout
+    onLoadLayout,
+    onExport,
+    onImport,
+    onPrint,
+    onOpenSearch,
+    theme,
+    onToggleTheme,
+    canUndo,
+    canRedo,
+    onUndo,
+    onRedo,
 }) => {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState(projectTitle);
 
-    // Item Editing State
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
     const [editItemTitle, setEditItemTitle] = useState('');
 
-    // Save Layout Modal State
     const [saveStep, setSaveStep] = useState<'closed' | 'confirm' | 'name'>('closed');
     const [configName, setConfigName] = useState('');
 
-    // Delete Confirmation State
     const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
 
-    // Saved Layouts Modal State
     const [showSavedLayouts, setShowSavedLayouts] = useState(false);
     const [deleteLayoutName, setDeleteLayoutName] = useState<string | null>(null);
+
+    // Drag-to-reorder state
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const dragCounter = useRef(0);
 
     const getSavedConfigs = (): Record<string, SavedConfig> => {
         try {
@@ -91,46 +114,167 @@ export const Sidebar: React.FC<SidebarProps> = ({
         setEditingItemId(null);
     };
 
+    // Drag handlers
+    const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+        setDragIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+        // Make drag image semi-transparent
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '0.5';
+        }
+    }, []);
+
+    const handleDragEnd = useCallback((e: React.DragEvent) => {
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '1';
+        }
+        setDragIndex(null);
+        setDragOverIndex(null);
+        dragCounter.current = 0;
+    }, []);
+
+    const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        dragCounter.current++;
+        setDragOverIndex(index);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        dragCounter.current--;
+        if (dragCounter.current === 0) {
+            setDragOverIndex(null);
+        }
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
+        e.preventDefault();
+        dragCounter.current = 0;
+        if (dragIndex !== null && dragIndex !== toIndex) {
+            onReorderItems(dragIndex, toIndex);
+        }
+        setDragIndex(null);
+        setDragOverIndex(null);
+    }, [dragIndex, onReorderItems]);
+
     return (
-        <div className="sidebar">
-            <div className="sidebar-header" style={{ padding: '20px', borderBottom: '1px solid #ddd' }}>
+        <nav className="sidebar" role="navigation" aria-label="Main navigation">
+            {/* Sidebar Header */}
+            <div className="sidebar-header">
                 {isEditingTitle ? (
-                    <div className="flex-row" style={{ gap: '5px' }}>
-                        <input
-                            type="text"
-                            value={tempTitle}
-                            onChange={(e) => setTempTitle(e.target.value)}
-                            onBlur={handleTitleSave}
-                            onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()}
-                            autoFocus
-                            className="full-width"
-                        />
-                    </div>
+                    <input
+                        type="text"
+                        value={tempTitle}
+                        onChange={(e) => setTempTitle(e.target.value)}
+                        onBlur={handleTitleSave}
+                        onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()}
+                        autoFocus
+                        className="full-width"
+                        aria-label="Project title"
+                    />
                 ) : (
                     <div className="flex-row" style={{ justifyContent: 'space-between' }}>
-                        <h3 style={{ margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <h3 style={{ margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexGrow: 1 }}>
                             {projectTitle}
                         </h3>
-                        <button onClick={() => setIsEditingTitle(true)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0 5px' }}>
-                            ✎
-                        </button>
+                        <div className="flex-row" style={{ gap: '4px', flexShrink: 0 }}>
+                            <button className="btn-icon" onClick={() => setIsEditingTitle(true)} title="Rename project" aria-label="Rename project" style={{ color: 'var(--color-sidebar-text)' }}>
+                                ✎
+                            </button>
+                            <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} role="switch" aria-checked={theme === 'dark'} />
+                        </div>
                     </div>
                 )}
             </div>
 
-            <div className="sidebar-items" style={{ flexGrow: 1, overflowY: 'auto', padding: '10px 0' }}>
-                {items.map((item) => (
+            {/* Toolbar */}
+            <div className="flex-row" style={{ padding: '8px 20px', gap: '4px', borderBottom: '1px solid var(--color-sidebar-divider)' }} role="toolbar" aria-label="Actions toolbar">
+                <button
+                    className="btn-icon"
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    title="Undo (⌘Z)"
+                    aria-label="Undo"
+                    style={{ color: canUndo ? 'var(--color-sidebar-text)' : 'var(--color-sidebar-divider)', fontSize: '14px' }}
+                >
+                    ↩
+                </button>
+                <button
+                    className="btn-icon"
+                    onClick={onRedo}
+                    disabled={!canRedo}
+                    title="Redo (⌘⇧Z)"
+                    aria-label="Redo"
+                    style={{ color: canRedo ? 'var(--color-sidebar-text)' : 'var(--color-sidebar-divider)', fontSize: '14px' }}
+                >
+                    ↪
+                </button>
+                <div style={{ flexGrow: 1 }} />
+                <button
+                    className="btn-icon"
+                    onClick={onOpenSearch}
+                    title="Search (⌘K)"
+                    aria-label="Open global search"
+                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
+                >
+                    🔍
+                </button>
+                <button
+                    className="btn-icon"
+                    onClick={onPrint}
+                    title="Print layout"
+                    aria-label="Print current layout"
+                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
+                >
+                    🖨️
+                </button>
+                <button
+                    className="btn-icon"
+                    onClick={onExport}
+                    title="Export as JSON"
+                    aria-label="Export project as JSON"
+                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
+                >
+                    ↓
+                </button>
+                <button
+                    className="btn-icon"
+                    onClick={onImport}
+                    title="Import from JSON"
+                    aria-label="Import project from JSON"
+                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
+                >
+                    ↑
+                </button>
+            </div>
+
+            {/* Sidebar Items (with drag-to-reorder) */}
+            <div className="sidebar-items" role="list" aria-label="Sidebar items">
+                {items.length === 0 && (
+                    <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--color-sidebar-text)', fontSize: '13px', opacity: 0.6 }}>
+                        No items yet. Click "+ Add New" to start.
+                    </div>
+                )}
+                {items.map((item, index) => (
                     <div
                         key={item.id}
-                        className={`sidebar-item flex-row ${activeItemId === item.id ? 'active' : ''}`}
+                        className={`sidebar-item ${activeItemId === item.id ? 'active' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
                         onClick={() => onSelectItem(item.id)}
-                        style={{
-                            padding: '10px 20px',
-                            cursor: 'pointer',
-                            backgroundColor: activeItemId === item.id ? '#e9ecef' : 'transparent',
-                            justifyContent: 'space-between',
-                            transition: 'background-color 0.2s'
-                        }}
+                        role="listitem"
+                        aria-current={activeItemId === item.id ? 'true' : undefined}
+                        draggable={editingItemId !== item.id}
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnd={handleDragEnd}
+                        onDragEnter={(e) => handleDragEnter(e, index)}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
                     >
                         {editingItemId === item.id ? (
                             <input
@@ -141,213 +285,117 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 onKeyDown={(e) => e.key === 'Enter' && saveItemTitle(item.id)}
                                 autoFocus
                                 onClick={(e) => e.stopPropagation()}
+                                aria-label="Edit item name"
                             />
                         ) : (
-                            <span
-                                onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    startEditingItem(item);
-                                }}
-                                style={{ fontWeight: activeItemId === item.id ? 'bold' : 'normal', flexGrow: 1, userSelect: 'none' }}
-                                title="Double click to rename"
-                            >
-                                {item.title}
-                            </span>
+                            <div className="flex-row" style={{ justifyContent: 'space-between', width: '100%' }}>
+                                <span className="flex-row" style={{ gap: '6px', flexGrow: 1, overflow: 'hidden' }}>
+                                    <span className="drag-handle" aria-hidden="true" title="Drag to reorder" style={{ cursor: 'grab', opacity: 0.5, fontSize: '10px', flexShrink: 0 }}>⠿</span>
+                                    <span
+                                        onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            startEditingItem(item);
+                                        }}
+                                        style={{ flexGrow: 1, userSelect: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                        title={item.title}
+                                    >
+                                        {item.title}
+                                    </span>
+                                </span>
+                                <div className="flex-row" style={{ gap: '2px', flexShrink: 0 }}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            startEditingItem(item);
+                                        }}
+                                        title="Rename"
+                                        aria-label={`Rename ${item.title}`}
+                                        style={{ fontSize: '13px' }}
+                                    >
+                                        ✎
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteItemId(item.id);
+                                        }}
+                                        title="Delete"
+                                        aria-label={`Delete ${item.title}`}
+                                        style={{ fontSize: '16px' }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
                         )}
-                        <div className="flex-row" style={{ gap: '2px', flexShrink: 0 }}>
-                            {editingItemId !== item.id && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditingItem(item);
-                                    }}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#999',
-                                        padding: '0 4px',
-                                        fontSize: '14px',
-                                        cursor: 'pointer',
-                                        lineHeight: 1
-                                    }}
-                                    title="Rename Item"
-                                >
-                                    ✎
-                                </button>
-                            )}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteItemId(item.id);
-                                }}
-                                style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#999',
-                                    padding: '0 5px',
-                                    fontSize: '18px',
-                                    cursor: 'pointer',
-                                    lineHeight: 1
-                                }}
-                                title="Remove Item"
-                            >
-                                ×
-                            </button>
-                        </div>
                     </div>
                 ))}
             </div>
 
-            {/* Delete Confirmation Modal */}
+            {/* Delete Sidebar Item Modal */}
             {deleteItemId && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => setDeleteItemId(null)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '360px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 20px 0' }}>Delete Sidebar Item?</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="modal-overlay" onClick={() => setDeleteItemId(null)} role="dialog" aria-modal="true" aria-label="Delete confirmation">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
+                        <h3>Delete Sidebar Item?</h3>
+                        <p>This will permanently delete this item and all its categories, layers, and tables.</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setDeleteItemId(null)}>Cancel</button>
                             <button
-                                onClick={() => setDeleteItemId(null)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
+                                className="btn-danger"
                                 onClick={() => {
                                     onRemoveItem(deleteItemId);
                                     setDeleteItemId(null);
                                 }}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#dc3545',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
                             >
-                                Yes
+                                Delete
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <div className="sidebar-footer" style={{ padding: '20px', borderTop: '1px solid #ddd' }}>
-                <button className="full-width" onClick={onAddItem}>
+            {/* Sidebar Footer */}
+            <div className="sidebar-footer">
+                <button onClick={onAddItem} style={{ background: 'var(--color-sidebar-surface)', color: 'var(--color-sidebar-text-bright)', border: '1px solid var(--color-sidebar-divider)' }} aria-label="Add new sidebar item">
                     + Add New
                 </button>
                 <button
-                    className="full-width"
+                    className="btn-success"
                     onClick={() => setSaveStep('confirm')}
-                    style={{ marginTop: '8px', background: '#28a745', color: '#fff', border: 'none' }}
+                    aria-label="Save current layout"
                 >
-                    Save Current Layout
+                    💾 Save Layout <span className="kbd">⌘S</span>
                 </button>
                 <button
-                    className="full-width"
+                    className="btn-info"
                     onClick={() => setShowSavedLayouts(true)}
-                    style={{ marginTop: '8px', background: '#17a2b8', color: '#fff', border: 'none' }}
+                    aria-label="View saved layouts"
                 >
-                    Saved Layouts
+                    📋 Saved Layouts
                 </button>
             </div>
 
             {/* Save Layout Modal */}
             {saveStep !== 'closed' && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => { setSaveStep('closed'); setConfigName(''); }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '400px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
+                <div className="modal-overlay" onClick={() => { setSaveStep('closed'); setConfigName(''); }} role="dialog" aria-modal="true" aria-label="Save layout">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '400px' }}>
                         {saveStep === 'confirm' && (
                             <>
-                                <h3 style={{ margin: '0 0 20px 0' }}>Save Current Configuration?</h3>
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <button
-                                        onClick={() => { setSaveStep('closed'); setConfigName(''); }}
-                                        style={{
-                                            padding: '8px 24px',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '4px',
-                                            background: '#f8f9fa',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        No
-                                    </button>
-                                    <button
-                                        onClick={() => setSaveStep('name')}
-                                        style={{
-                                            padding: '8px 24px',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            background: '#007bff',
-                                            color: '#fff',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        Yes
-                                    </button>
+                                <h3>Save Current Layout?</h3>
+                                <p>This will save a snapshot of your current workspace that you can restore later.</p>
+                                <div className="modal-actions">
+                                    <button onClick={() => { setSaveStep('closed'); setConfigName(''); }}>Cancel</button>
+                                    <button className="btn-primary" onClick={() => setSaveStep('name')}>Continue</button>
                                 </div>
                             </>
                         )}
 
                         {saveStep === 'name' && (
                             <>
-                                <h3 style={{ margin: '0 0 16px 0' }}>Name Your Configuration</h3>
+                                <h3>Name Your Layout</h3>
                                 <input
                                     type="text"
-                                    placeholder="Configuration name"
+                                    placeholder="e.g., Sprint 3 Setup"
                                     value={configName}
                                     onChange={(e) => setConfigName(e.target.value)}
                                     onKeyDown={(e) => {
@@ -358,43 +406,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         }
                                     }}
                                     autoFocus
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        fontSize: '14px',
-                                        marginBottom: '20px'
-                                    }}
+                                    aria-label="Layout name"
+                                    style={{ marginBottom: '20px' }}
                                 />
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <div className="modal-actions">
+                                    <button onClick={() => { setSaveStep('closed'); setConfigName(''); }}>Cancel</button>
                                     <button
-                                        onClick={() => { setSaveStep('closed'); setConfigName(''); }}
-                                        style={{
-                                            padding: '8px 24px',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '4px',
-                                            background: '#f8f9fa',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
+                                        className="btn-success"
                                         onClick={() => {
                                             if (configName.trim()) {
                                                 onSaveLayout(configName.trim());
                                                 setSaveStep('closed');
                                                 setConfigName('');
                                             }
-                                        }}
-                                        style={{
-                                            padding: '8px 24px',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            background: '#28a745',
-                                            color: '#fff',
-                                            cursor: 'pointer'
                                         }}
                                     >
                                         Save
@@ -414,171 +438,82 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 );
 
                 return (
-                    <div
-                        style={{
-                            position: 'fixed',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            background: 'rgba(0, 0, 0, 0.5)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 2000
-                        }}
-                        onClick={() => setShowSavedLayouts(false)}
-                    >
-                        <div
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                                background: '#fff',
-                                borderRadius: '8px',
-                                padding: '24px',
-                                width: '500px',
-                                maxWidth: '90vw',
-                                maxHeight: '70vh',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                            }}
-                        >
-                            <h3 style={{ margin: '0 0 16px 0' }}>Saved Layouts</h3>
+                    <div className="modal-overlay" onClick={() => setShowSavedLayouts(false)} role="dialog" aria-modal="true" aria-label="Saved layouts">
+                        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '500px', maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
+                            <h3>Saved Layouts</h3>
 
                             {entries.length === 0 ? (
-                                <p style={{ color: '#888', textAlign: 'center', padding: '20px 0' }}>
-                                    No saved layouts yet.
-                                </p>
+                                <div className="empty-state" style={{ padding: '20px 0' }}>
+                                    <div>No saved layouts yet.</div>
+                                </div>
                             ) : (
                                 <div style={{ overflowY: 'auto', flexGrow: 1 }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '2px solid #dee2e6' }}>
-                                                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '13px', color: '#666', fontWeight: 600 }}>
-                                                    Layout Name
-                                                </th>
-                                                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '13px', color: '#666', fontWeight: 600 }}>
-                                                    Snapshot Date
-                                                </th>
-                                                <th style={{ width: '40px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {entries.map(([name, config]) => (
-                                                <tr
-                                                    key={name}
-                                                    onClick={() => {
-                                                        onLoadLayout({
-                                                            projectTitle: config.projectTitle,
-                                                            sidebarItems: config.sidebarItems,
-                                                            activeSidebarItemId: config.activeSidebarItemId,
-                                                            activeCategoryId: config.activeCategoryId
-                                                        });
-                                                        setShowSavedLayouts(false);
-                                                    }}
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        borderBottom: '1px solid #f0f0f0',
-                                                        transition: 'background-color 0.15s'
-                                                    }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                >
-                                                    <td style={{ padding: '10px 12px', fontWeight: 500 }}>
-                                                        {name}
-                                                    </td>
-                                                    <td style={{ padding: '10px 12px', color: '#666', fontSize: '13px' }}>
-                                                        {formatDate(config.savedAt)}
-                                                    </td>
-                                                    <td style={{ padding: '10px 4px', textAlign: 'center' }}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setDeleteLayoutName(name);
-                                                            }}
-                                                            style={{
-                                                                border: 'none',
-                                                                background: 'transparent',
-                                                                color: '#dc3545',
-                                                                cursor: 'pointer',
-                                                                fontSize: '16px',
-                                                                padding: '0 4px',
-                                                                lineHeight: 1
-                                                            }}
-                                                            title="Delete Layout"
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    {entries.map(([name, config]) => (
+                                        <div
+                                            key={name}
+                                            onClick={() => {
+                                                onLoadLayout({
+                                                    projectTitle: config.projectTitle,
+                                                    sidebarItems: config.sidebarItems,
+                                                    activeSidebarItemId: config.activeSidebarItemId,
+                                                    activeCategoryId: config.activeCategoryId,
+                                                });
+                                                setShowSavedLayouts(false);
+                                            }}
+                                            style={{
+                                                padding: '14px 16px',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                transition: 'background var(--transition-fast)',
+                                                marginBottom: '4px',
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`Load layout: ${name}`}
+                                        >
+                                            <div>
+                                                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-text)' }}>{name}</div>
+                                                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{formatDate(config.savedAt)}</div>
+                                            </div>
+                                            <button
+                                                className="btn-icon btn-icon-danger"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteLayoutName(name);
+                                                }}
+                                                title="Delete Layout"
+                                                aria-label={`Delete layout: ${name}`}
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
-                            <div style={{ marginTop: '16px', textAlign: 'right' }}>
-                                <button
-                                    onClick={() => setShowSavedLayouts(false)}
-                                    style={{
-                                        padding: '8px 24px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        background: '#f8f9fa',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Close
-                                </button>
+                            <div className="modal-actions" style={{ marginTop: '16px' }}>
+                                <button onClick={() => setShowSavedLayouts(false)}>Close</button>
                             </div>
                         </div>
                     </div>
                 );
             })()}
 
-            {/* Delete Saved Layout Confirmation Modal */}
+            {/* Delete Layout Confirmation */}
             {deleteLayoutName && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 3000
-                    }}
-                    onClick={() => setDeleteLayoutName(null)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '360px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 20px 0' }}>Delete Saved Layout?</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="modal-overlay" onClick={() => setDeleteLayoutName(null)} style={{ zIndex: 3000 }} role="dialog" aria-modal="true" aria-label="Delete layout confirmation">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
+                        <h3>Delete Layout "{deleteLayoutName}"?</h3>
+                        <p>This action cannot be undone.</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setDeleteLayoutName(null)}>Cancel</button>
                             <button
-                                onClick={() => setDeleteLayoutName(null)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
+                                className="btn-danger"
                                 onClick={() => {
                                     try {
                                         const configs = getSavedConfigs();
@@ -587,21 +522,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     } catch { /* ignore */ }
                                     setDeleteLayoutName(null);
                                 }}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#dc3545',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
                             >
-                                Yes
+                                Delete
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+        </nav>
     );
-};
+});
+
+Sidebar.displayName = 'Sidebar';

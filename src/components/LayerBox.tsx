@@ -30,30 +30,41 @@ const createDefaultTable = (): TableData => {
     };
 };
 
+const deepCloneTable = (table: TableData): TableData => {
+    const newId = crypto.randomUUID();
+    return {
+        ...structuredClone(table),
+        id: newId,
+        title: `${table.title} (copy)`,
+        rows: table.rows.map(row => ({
+            ...structuredClone(row),
+            id: `r${crypto.randomUUID().slice(0, 8)}_${newId}`,
+        })),
+    };
+};
+
 interface LayerBoxProps {
     layer: Layer;
     onUpdateLayer: (id: string, updates: Partial<Layer> | ((prev: Layer) => Partial<Layer>)) => void;
     onRemoveLayer: (id: string) => void;
+    onDuplicateLayer: (layerId: string) => void;
     index: number;
     totalLayers: number;
     onReorderLayer: (layerId: string, direction: 'up' | 'down') => void;
 }
 
-export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemoveLayer, index, totalLayers, onReorderLayer }) => {
+export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLayer, onRemoveLayer, onDuplicateLayer, index, totalLayers, onReorderLayer }) => {
     const boxRef = useRef<HTMLDivElement>(null);
     const descRef = useRef<HTMLDivElement>(null);
     const [isResizing, setIsResizing] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
 
-    // Table title editing state
     const [editingTableId, setEditingTableId] = useState<string | null>(null);
     const [editTableTitle, setEditTableTitle] = useState('');
 
-    // Track whether the rich text editor is focused
     const [descFocused, setDescFocused] = useState(false);
 
-    // Sync description HTML into contentEditable only when not focused
     useEffect(() => {
         if (descRef.current && !descFocused) {
             if (descRef.current.innerHTML !== layer.description) {
@@ -70,7 +81,6 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
 
     const execFormat = (command: string) => {
         document.execCommand(command, false);
-        // Refocus the editor after clicking toolbar button
         descRef.current?.focus();
         handleDescInput();
     };
@@ -82,7 +92,6 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
         setEditingTableId(null);
     };
 
-    // Resizing Logic
     useEffect(() => {
         const box = boxRef.current;
         if (!box) return;
@@ -96,10 +105,8 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!isResizing) return;
-
             const newWidth = e.clientX - box.getBoundingClientRect().left;
             const newHeight = e.clientY - box.getBoundingClientRect().top;
-
             if (newWidth > 200 && newHeight > 100) {
                 box.style.width = `${newWidth}px`;
                 box.style.height = `${newHeight}px`;
@@ -134,24 +141,37 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
     }, [isResizing, layer.id, onUpdateLayer]);
 
     // --- Table Management ---
-    const handleAddTable = () => {
+    const handleAddTable = useCallback(() => {
         if (layer.tables.length >= MAX_TABLES) return;
         const newTable = createDefaultTable();
         onUpdateLayer(layer.id, prev => ({ tables: [...prev.tables, newTable] }));
-    };
+    }, [layer.id, layer.tables.length, onUpdateLayer]);
 
-    const handleRemoveTable = (tableId: string) => {
+    const handleDuplicateTable = useCallback((tableId: string) => {
+        if (layer.tables.length >= MAX_TABLES) return;
+        onUpdateLayer(layer.id, prev => {
+            const table = prev.tables.find(t => t.id === tableId);
+            if (!table) return {};
+            const cloned = deepCloneTable(table);
+            const idx = prev.tables.findIndex(t => t.id === tableId);
+            const newTables = [...prev.tables];
+            newTables.splice(idx + 1, 0, cloned);
+            return { tables: newTables };
+        });
+    }, [layer.id, layer.tables.length, onUpdateLayer]);
+
+    const handleRemoveTable = useCallback((tableId: string) => {
         onUpdateLayer(layer.id, prev => ({ tables: prev.tables.filter(t => t.id !== tableId) }));
         setDeleteTableId(null);
-    };
+    }, [layer.id, onUpdateLayer]);
 
-    const handleUpdateTable = (tableId: string, updates: Partial<TableData>) => {
+    const handleUpdateTable = useCallback((tableId: string, updates: Partial<TableData>) => {
         onUpdateLayer(layer.id, prev => ({
             tables: prev.tables.map(t => t.id === tableId ? { ...t, ...updates } : t)
         }));
-    };
+    }, [layer.id, onUpdateLayer]);
 
-    const handleReorderTable = (tableId: string, direction: 'up' | 'down') => {
+    const handleReorderTable = useCallback((tableId: string, direction: 'up' | 'down') => {
         onUpdateLayer(layer.id, prev => {
             const tables = [...prev.tables];
             const idx = tables.findIndex(t => t.id === tableId);
@@ -161,60 +181,44 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
             [tables[idx], tables[swapIdx]] = [tables[swapIdx], tables[idx]];
             return { tables };
         });
-    };
-
-    const style: React.CSSProperties = {
-        width: layer.width || 600,
-        height: layer.height || 400,
-        border: '1px solid #ccc',
-        background: '#f5f5f5',
-        margin: '20px',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-    };
+    }, [layer.id, onUpdateLayer]);
 
     return (
-        <div ref={boxRef} style={style} className="layer-box">
+        <article
+            ref={boxRef}
+            className="layer-box"
+            style={{
+                width: layer.width || 650,
+                height: layer.height || 420,
+                marginBottom: '20px',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+            }}
+            aria-label={`Layer: ${layer.title}`}
+        >
             {/* Layer Header */}
-            <div className="layer-header" style={{
-                padding: '10px',
-                borderBottom: '1px solid #ddd',
-                background: '#fff',
-                position: 'relative'
-            }}>
-                <div className="flex-row" style={{ justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
+            <header className="layer-header" style={{ padding: '12px 14px', position: 'relative' }}>
+                <div className="flex-row" style={{ justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
                     {/* Reorder buttons */}
-                    <div style={{ display: 'flex', gap: '2px', flexShrink: 0, marginRight: '8px' }}>
+                    <div className="flex-row" style={{ gap: '2px', flexShrink: 0, marginRight: '10px' }} role="group" aria-label="Reorder layer">
                         <button
+                            className="btn-icon"
                             onClick={() => onReorderLayer(layer.id, 'up')}
                             disabled={index === 0}
-                            style={{
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: index === 0 ? 'default' : 'pointer',
-                                fontSize: '14px',
-                                padding: '2px 4px',
-                                color: index === 0 ? '#ddd' : '#666',
-                                lineHeight: 1
-                            }}
                             title="Move up"
+                            aria-label="Move layer up"
+                            style={{ fontSize: '12px' }}
                         >
                             ▲
                         </button>
                         <button
+                            className="btn-icon"
                             onClick={() => onReorderLayer(layer.id, 'down')}
                             disabled={index === totalLayers - 1}
-                            style={{
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: index === totalLayers - 1 ? 'default' : 'pointer',
-                                fontSize: '14px',
-                                padding: '2px 4px',
-                                color: index === totalLayers - 1 ? '#ddd' : '#666',
-                                lineHeight: 1
-                            }}
                             title="Move down"
+                            aria-label="Move layer down"
+                            style={{ fontSize: '12px' }}
                         >
                             ▼
                         </button>
@@ -225,71 +229,66 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
                         value={layer.title}
                         onChange={(e) => onUpdateLayer(layer.id, { title: e.target.value })}
                         style={{
-                            fontWeight: 'bold',
+                            fontWeight: 600,
                             border: 'none',
                             background: 'transparent',
-                            fontSize: '16px',
+                            fontSize: '15px',
                             flexGrow: 1,
-                            minWidth: 0
+                            minWidth: 0,
+                            color: 'var(--color-text)',
+                            outline: 'none',
+                            padding: 0,
                         }}
                         placeholder="Layer Title"
+                        aria-label="Layer title"
                     />
 
-                    {/* Remove layer button - fixed top-right */}
-                    <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        style={{
-                            color: '#dc3545',
-                            border: 'none',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            fontSize: '16px',
-                            padding: '2px 6px',
-                            flexShrink: 0,
-                            lineHeight: 1
-                        }}
-                        title="Remove Layer"
-                    >
-                        🗑️
-                    </button>
+                    <div className="flex-row" style={{ gap: '2px', flexShrink: 0 }}>
+                        <button
+                            className="btn-icon"
+                            onClick={() => onDuplicateLayer(layer.id)}
+                            title="Duplicate Layer"
+                            aria-label="Duplicate layer"
+                            style={{ fontSize: '14px' }}
+                        >
+                            📋
+                        </button>
+                        <button
+                            className="btn-icon btn-icon-danger"
+                            onClick={() => setShowDeleteConfirm(true)}
+                            title="Remove Layer"
+                            aria-label="Remove layer"
+                        >
+                            🗑️
+                        </button>
+                    </div>
                 </div>
-                {/* Rich Text Description */}
-                <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+
+                {/* Rich Text Toolbar */}
+                <div className="flex-row" style={{ gap: '4px', marginBottom: '6px' }} role="toolbar" aria-label="Text formatting">
                     <button
+                        className="btn-ghost"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execFormat('bold')}
-                        style={{
-                            border: '1px solid #ddd',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            fontSize: '12px',
-                            padding: '2px 6px',
-                            borderRadius: '3px',
-                            color: '#666'
-                        }}
                         title="Bold"
+                        aria-label="Bold"
+                        style={{ fontWeight: 700, fontSize: '12px', padding: '2px 8px' }}
                     >
                         B
                     </button>
                     <button
+                        className="btn-ghost"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execFormat('italic')}
-                        style={{
-                            border: '1px solid #ddd',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            fontStyle: 'italic',
-                            fontSize: '12px',
-                            padding: '2px 6px',
-                            borderRadius: '3px',
-                            color: '#666'
-                        }}
                         title="Italic"
+                        aria-label="Italic"
+                        style={{ fontStyle: 'italic', fontSize: '12px', padding: '2px 8px' }}
                     >
                         I
                     </button>
                 </div>
+
+                {/* Description */}
                 <div
                     ref={descRef}
                     contentEditable
@@ -298,81 +297,54 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
                     onBlur={() => setDescFocused(false)}
                     style={{
                         width: '100%',
-                        minHeight: '40px',
+                        minHeight: '36px',
                         border: 'none',
                         background: 'transparent',
-                        fontSize: '12px',
-                        color: '#666',
+                        fontSize: '13px',
+                        color: 'var(--color-text-secondary)',
                         outline: 'none',
-                        lineHeight: 1.5
+                        lineHeight: 1.6,
                     }}
-                    data-placeholder="Layer Description..."
+                    data-placeholder="Layer description..."
+                    role="textbox"
+                    aria-label="Layer description"
+                    aria-multiline="true"
                 />
-            </div>
+            </header>
 
             {/* Tables Body */}
             <div className="layer-body" style={{
                 flexGrow: 1,
                 overflow: 'auto',
-                background: '#fff',
                 display: 'flex',
                 flexDirection: 'column'
             }}>
                 {layer.tables.length === 0 ? (
-                    <div style={{
-                        flexGrow: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#bbb',
-                        fontSize: '14px',
-                        padding: '20px'
-                    }}>
-                        No tables — this layer can be used as a standalone design element
+                    <div className="empty-state" style={{ flexGrow: 1, padding: '16px' }}>
+                        <div style={{ fontSize: '13px' }}>No tables — standalone design element</div>
                     </div>
                 ) : (
                     layer.tables.map((table, tIdx) => (
-                        <div key={table.id} style={{ borderBottom: tIdx < layer.tables.length - 1 ? '2px solid #e0e0e0' : 'none' }}>
-                            {/* Per-table header bar */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '4px 8px',
-                                background: '#f0f2f5',
-                                borderBottom: '1px solid #ddd',
-                                fontSize: '13px'
-                            }}>
-                                {/* Table reorder buttons */}
+                        <div key={table.id} style={{ borderBottom: tIdx < layer.tables.length - 1 ? '2px solid var(--color-border)' : 'none' }}>
+                            {/* Table header bar */}
+                            <div className="table-toolbar flex-row" style={{ gap: '6px' }}>
                                 <button
+                                    className="btn-icon"
                                     onClick={() => handleReorderTable(table.id, 'up')}
                                     disabled={tIdx === 0}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: tIdx === 0 ? 'default' : 'pointer',
-                                        fontSize: '11px',
-                                        padding: '1px 3px',
-                                        color: tIdx === 0 ? '#ddd' : '#666',
-                                        lineHeight: 1
-                                    }}
                                     title="Move table up"
+                                    aria-label="Move table up"
+                                    style={{ fontSize: '10px' }}
                                 >
                                     ▲
                                 </button>
                                 <button
+                                    className="btn-icon"
                                     onClick={() => handleReorderTable(table.id, 'down')}
                                     disabled={tIdx === layer.tables.length - 1}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: tIdx === layer.tables.length - 1 ? 'default' : 'pointer',
-                                        fontSize: '11px',
-                                        padding: '1px 3px',
-                                        color: tIdx === layer.tables.length - 1 ? '#ddd' : '#666',
-                                        lineHeight: 1
-                                    }}
                                     title="Move table down"
+                                    aria-label="Move table down"
+                                    style={{ fontSize: '10px' }}
                                 >
                                     ▼
                                 </button>
@@ -385,16 +357,17 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
                                         onBlur={saveTableTitle}
                                         onKeyDown={(e) => e.key === 'Enter' && saveTableTitle()}
                                         autoFocus
+                                        aria-label="Table title"
                                         style={{
                                             fontWeight: 600,
-                                            color: '#444',
                                             flexGrow: 1,
                                             border: 'none',
                                             background: 'transparent',
-                                            outline: '1px solid #007bff',
-                                            borderRadius: '2px',
-                                            padding: '1px 4px',
-                                            fontSize: '13px'
+                                            outline: '2px solid var(--color-primary)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            padding: '2px 6px',
+                                            fontSize: '13px',
+                                            color: 'var(--color-text)',
                                         }}
                                     />
                                 ) : (
@@ -403,26 +376,28 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
                                             setEditingTableId(table.id);
                                             setEditTableTitle(table.title);
                                         }}
-                                        style={{ fontWeight: 600, color: '#444', flexGrow: 1, cursor: 'text', userSelect: 'none' }}
+                                        style={{ fontWeight: 600, color: 'var(--color-text-secondary)', flexGrow: 1, cursor: 'text', userSelect: 'none', fontSize: '13px' }}
                                         title="Double-click to rename"
                                     >
                                         {table.title}
                                     </span>
                                 )}
 
-                                {/* Delete table button */}
                                 <button
+                                    className="btn-icon"
+                                    onClick={() => handleDuplicateTable(table.id)}
+                                    title="Duplicate table"
+                                    aria-label="Duplicate table"
+                                    style={{ fontSize: '12px' }}
+                                >
+                                    📋
+                                </button>
+                                <button
+                                    className="btn-icon btn-icon-danger"
                                     onClick={() => setDeleteTableId(table.id)}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#dc3545',
-                                        cursor: 'pointer',
-                                        fontSize: '14px',
-                                        padding: '1px 4px',
-                                        lineHeight: 1
-                                    }}
                                     title="Delete table"
+                                    aria-label="Delete table"
+                                    style={{ fontSize: '13px' }}
                                 >
                                     🗑️
                                 </button>
@@ -436,21 +411,10 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
                     ))
                 )}
 
-                {/* Add Table button */}
+                {/* Add Table */}
                 {layer.tables.length < MAX_TABLES && (
-                    <div style={{ padding: '8px', textAlign: 'center', borderTop: layer.tables.length > 0 ? '1px solid #eee' : 'none', position: 'relative', zIndex: 2 }}>
-                        <button
-                            onClick={handleAddTable}
-                            style={{
-                                background: '#007bff',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                padding: '6px 16px',
-                                cursor: 'pointer',
-                                fontSize: '13px'
-                            }}
-                        >
+                    <div style={{ padding: '10px', textAlign: 'center', borderTop: layer.tables.length > 0 ? '1px solid var(--color-border)' : 'none', position: 'relative', zIndex: 2 }}>
+                        <button className="btn-primary" onClick={handleAddTable} aria-label="Add new table" style={{ fontSize: '12px', padding: '6px 16px' }}>
                             + Add Table ({layer.tables.length}/{MAX_TABLES})
                         </button>
                     </div>
@@ -460,137 +424,54 @@ export const LayerBox: React.FC<LayerBoxProps> = ({ layer, onUpdateLayer, onRemo
             {/* Resize Handle */}
             <div className="resize-handle" style={{
                 position: 'absolute',
-                bottom: '0',
-                right: '0',
-                width: '15px',
-                height: '15px',
+                bottom: 0,
+                right: 0,
+                width: '16px',
+                height: '16px',
                 cursor: 'se-resize',
-                background: 'linear-gradient(135deg, transparent 50%, #999 50%)',
-                zIndex: 10
-            }} />
+                background: 'linear-gradient(135deg, transparent 50%, var(--color-text-muted) 50%)',
+                borderRadius: '0 0 var(--radius-lg) 0',
+                opacity: 0.4,
+                zIndex: 10,
+            }} role="separator" aria-label="Resize layer" />
 
-            {/* Delete Layer Confirmation Modal */}
+            {/* Delete Layer Modal */}
             {showDeleteConfirm && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => setShowDeleteConfirm(false)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '360px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 20px 0' }}>Delete Layer?</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)} role="dialog" aria-modal="true" aria-label="Delete layer confirmation">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
+                        <h3>Delete Layer "{layer.title}"?</h3>
+                        <p>This will permanently delete this layer and all its tables.</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
                             <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
+                                className="btn-danger"
                                 onClick={() => {
                                     onRemoveLayer(layer.id);
                                     setShowDeleteConfirm(false);
                                 }}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#dc3545',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
                             >
-                                Yes
+                                Delete
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Delete Table Confirmation Modal */}
+            {/* Delete Table Modal */}
             {deleteTableId && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => setDeleteTableId(null)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '360px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 20px 0' }}>Delete Table?</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <button
-                                onClick={() => setDeleteTableId(null)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
-                                onClick={() => handleRemoveTable(deleteTableId)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#dc3545',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Yes
-                            </button>
+                <div className="modal-overlay" onClick={() => setDeleteTableId(null)} role="dialog" aria-modal="true" aria-label="Delete table confirmation">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
+                        <h3>Delete Table?</h3>
+                        <p>This will permanently delete this table and all its data.</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setDeleteTableId(null)}>Cancel</button>
+                            <button className="btn-danger" onClick={() => handleRemoveTable(deleteTableId)}>Delete</button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+        </article>
     );
-};
+});
+
+LayerBox.displayName = 'LayerBox';

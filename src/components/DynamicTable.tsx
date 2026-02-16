@@ -6,30 +6,26 @@ interface DynamicTableProps {
     onUpdateTable: (updates: Partial<TableData>) => void;
 }
 
-export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateTable }) => {
-    // State for resizing
+export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData, onUpdateTable }) => {
     const [resizingCol, setResizingCol] = useState<string | null>(null);
     const [resizingRow, setResizingRow] = useState<string | null>(null);
     const tableRef = useRef<HTMLDivElement>(null);
 
-    // Editing State
     const [editingCell, setEditingCell] = useState<{ rowId: string, colId: string } | null>(null);
     const [editValue, setEditValue] = useState('');
 
-    // Column Header Editing State
     const [editingColId, setEditingColId] = useState<string | null>(null);
     const [editColTitle, setEditColTitle] = useState('');
 
-    // --- Resizing Logic ---
-    const handleMouseDownCol = (e: React.MouseEvent, colId: string) => {
+    const handleMouseDownCol = useCallback((e: React.MouseEvent, colId: string) => {
         setResizingCol(colId);
         e.preventDefault();
-    };
+    }, []);
 
-    const handleMouseDownRow = (e: React.MouseEvent, rowId: string) => {
+    const handleMouseDownRow = useCallback((e: React.MouseEvent, rowId: string) => {
         setResizingRow(rowId);
         e.preventDefault();
-    };
+    }, []);
 
     const handleMouseMove = useCallback((e: MouseEvent) => {
         if (resizingCol) {
@@ -72,14 +68,12 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
         };
     }, [resizingCol, resizingRow, handleMouseMove, handleMouseUp]);
 
-
-    // --- Cell Editing Logic ---
-    const startEditing = (rowId: string, colId: string, value: string) => {
+    const startEditing = useCallback((rowId: string, colId: string, value: string) => {
         setEditingCell({ rowId, colId });
         setEditValue(value);
-    };
+    }, []);
 
-    const saveEdit = () => {
+    const saveEdit = useCallback(() => {
         if (editingCell) {
             const newRows = tableData.rows.map(row => {
                 if (row.id === editingCell.rowId) {
@@ -96,15 +90,14 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
             onUpdateTable({ rows: newRows });
             setEditingCell(null);
         }
-    };
+    }, [editingCell, editValue, tableData.rows, onUpdateTable]);
 
-    // --- Column Header Editing ---
-    const startEditingCol = (colId: string, title: string) => {
+    const startEditingCol = useCallback((colId: string, title: string) => {
         setEditingColId(colId);
         setEditColTitle(title);
-    };
+    }, []);
 
-    const saveColTitle = () => {
+    const saveColTitle = useCallback(() => {
         if (editingColId && editColTitle.trim()) {
             const newColumns = tableData.columns.map(col => {
                 if (col.id === editingColId) {
@@ -115,10 +108,9 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
             onUpdateTable({ columns: newColumns });
         }
         setEditingColId(null);
-    };
+    }, [editingColId, editColTitle, tableData.columns, onUpdateTable]);
 
-    // --- Structure Modification ---
-    const addColumn = () => {
+    const addColumn = useCallback(() => {
         const newColId = `c${Date.now()}`;
         const newColumns = [...tableData.columns, { id: newColId, title: `${tableData.columns.length + 1}`, width: 100 }];
         const newRows = tableData.rows.map(row => ({
@@ -129,9 +121,9 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
             }
         }));
         onUpdateTable({ columns: newColumns, rows: newRows });
-    };
+    }, [tableData, onUpdateTable]);
 
-    const addRow = () => {
+    const addRow = useCallback(() => {
         const newRowId = `r${Date.now()}`;
         const newCells: Record<string, { id: string; value: string }> = {};
         tableData.columns.forEach(col => {
@@ -139,10 +131,10 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
         });
         const newRows = [...tableData.rows, { id: newRowId, cells: newCells, height: 40 }];
         onUpdateTable({ rows: newRows });
-    };
+    }, [tableData, onUpdateTable]);
 
-    const removeColumn = (colId: string) => {
-        if (tableData.columns.length <= 1) return; // Keep at least 1 column
+    const removeColumn = useCallback((colId: string) => {
+        if (tableData.columns.length <= 1) return;
         const newColumns = tableData.columns.filter(c => c.id !== colId);
         const newRows = tableData.rows.map(row => {
             const newCells = { ...row.cells };
@@ -150,44 +142,50 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
             return { ...row, cells: newCells };
         });
         onUpdateTable({ columns: newColumns, rows: newRows });
-    };
+    }, [tableData, onUpdateTable]);
 
-    const removeRow = (rowId: string) => {
-        if (tableData.rows.length <= 1) return; // Keep at least 1 row
+    const removeRow = useCallback((rowId: string) => {
+        if (tableData.rows.length <= 1) return;
         const newRows = tableData.rows.filter(r => r.id !== rowId);
         onUpdateTable({ rows: newRows });
-    };
+    }, [tableData, onUpdateTable]);
+
+    const headerBg = 'var(--color-surface-alt)';
+    const borderColor = 'var(--color-border)';
+    const cellBorder = `1px solid ${borderColor}`;
 
     return (
-        <div className="dynamic-table-container" ref={tableRef} style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="dynamic-table-container" ref={tableRef} style={{ display: 'flex', flexDirection: 'column' }} role="region" aria-label={`Table: ${tableData.title}`}>
             {/* Toolbar */}
-            <div className="table-toolbar" style={{ padding: '5px', borderBottom: '1px solid #ddd', display: 'flex', gap: '10px' }}>
-                <button onClick={addColumn}>+ Col</button>
-                <button onClick={addRow}>+ Row</button>
+            <div className="table-toolbar flex-row" style={{ gap: '8px' }} role="toolbar" aria-label="Table structure controls">
+                <button onClick={addColumn} aria-label="Add column" style={{ fontSize: '12px', padding: '3px 10px' }}>+ Col</button>
+                <button onClick={addRow} aria-label="Add row" style={{ fontSize: '12px', padding: '3px 10px' }}>+ Row</button>
             </div>
 
             {/* Table Area */}
-            <div style={{ overflow: 'auto', flexGrow: 1, position: 'relative' }}>
-                <div style={{ display: 'flex', minWidth: 'fit-content' }}>
+            <div style={{ overflow: 'auto', flexGrow: 1, position: 'relative' }} role="grid" aria-label={tableData.title}>
+                <div style={{ display: 'flex', minWidth: 'fit-content' }} role="row">
                     {/* Corner */}
-                    <div style={{ width: '40px', flexShrink: 0, borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd', background: '#f8f9fa' }}></div>
+                    <div style={{ width: '40px', flexShrink: 0, borderRight: cellBorder, borderBottom: cellBorder, background: headerBg }} role="columnheader" aria-label="Row actions" />
 
-                    {/* Headers */}
+                    {/* Column Headers */}
                     {tableData.columns.map(col => (
-                        <div key={col.id} style={{
+                        <div key={col.id} role="columnheader" style={{
                             width: col.width,
-                            borderRight: '1px solid #ddd',
-                            borderBottom: '1px solid #ddd',
-                            padding: '4px 5px',
-                            background: '#f8f9fa',
-                            fontWeight: 'bold',
+                            borderRight: cellBorder,
+                            borderBottom: cellBorder,
+                            padding: '5px 6px',
+                            background: headerBg,
+                            fontWeight: 600,
                             textAlign: 'center',
                             position: 'relative',
                             flexShrink: 0,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '2px'
+                            gap: '2px',
+                            fontSize: '12px',
+                            color: 'var(--color-text-secondary)',
                         }}>
                             {editingColId === col.id ? (
                                 <input
@@ -197,15 +195,18 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
                                     onBlur={saveColTitle}
                                     onKeyDown={(e) => e.key === 'Enter' && saveColTitle()}
                                     autoFocus
+                                    aria-label="Column title"
                                     style={{
                                         border: 'none',
                                         background: 'transparent',
-                                        fontWeight: 'bold',
+                                        fontWeight: 600,
                                         textAlign: 'center',
                                         width: '100%',
-                                        outline: '1px solid #007bff',
-                                        borderRadius: '2px',
-                                        padding: '1px 2px'
+                                        outline: '2px solid var(--color-primary)',
+                                        borderRadius: '3px',
+                                        padding: '1px 2px',
+                                        color: 'var(--color-text)',
+                                        fontSize: '12px',
                                     }}
                                 />
                             ) : (
@@ -217,23 +218,15 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
                                     {col.title}
                                 </span>
                             )}
-                            {/* Delete column button */}
                             {tableData.columns.length > 1 && (
                                 <button
+                                    className="btn-icon btn-icon-danger"
                                     onClick={(e) => { e.stopPropagation(); removeColumn(col.id); }}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#ccc',
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        padding: '0 2px',
-                                        lineHeight: 1,
-                                        flexShrink: 0
-                                    }}
                                     title="Delete column"
-                                    onMouseEnter={(e) => e.currentTarget.style.color = '#dc3545'}
-                                    onMouseLeave={(e) => e.currentTarget.style.color = '#ccc'}
+                                    aria-label={`Delete column ${col.title}`}
+                                    style={{ fontSize: '12px', padding: '0 2px', opacity: 0.3 }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.3'}
                                 >
                                     ×
                                 </button>
@@ -248,48 +241,47 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
                                     bottom: 0,
                                     width: '5px',
                                     cursor: 'col-resize',
-                                    zIndex: 1
+                                    zIndex: 1,
                                 }}
+                                role="separator"
+                                aria-label={`Resize column ${col.title}`}
                             />
                         </div>
                     ))}
                 </div>
 
                 {/* Rows */}
-                {tableData.rows.map(row => (
-                    <div key={row.id} style={{ display: 'flex', minWidth: 'fit-content' }}>
-                        {/* Row Header/Index */}
-                        <div style={{
+                {tableData.rows.map((row, rIdx) => (
+                    <div key={row.id} style={{ display: 'flex', minWidth: 'fit-content' }} role="row">
+                        {/* Row Header */}
+                        <div role="rowheader" style={{
                             width: '40px',
                             height: row.height,
-                            borderRight: '1px solid #ddd',
-                            borderBottom: '1px solid #ddd',
-                            background: '#f8f9fa',
+                            borderRight: cellBorder,
+                            borderBottom: cellBorder,
+                            background: headerBg,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
-                            position: 'relative'
+                            position: 'relative',
+                            fontSize: '11px',
+                            color: 'var(--color-text-muted)',
                         }}>
-                            {/* Delete row button */}
-                            {tableData.rows.length > 1 && (
+                            {tableData.rows.length > 1 ? (
                                 <button
+                                    className="btn-icon btn-icon-danger"
                                     onClick={() => removeRow(row.id)}
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#ccc',
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        padding: 0,
-                                        lineHeight: 1
-                                    }}
                                     title="Delete row"
-                                    onMouseEnter={(e) => e.currentTarget.style.color = '#dc3545'}
-                                    onMouseLeave={(e) => e.currentTarget.style.color = '#ccc'}
+                                    aria-label={`Delete row ${rIdx + 1}`}
+                                    style={{ fontSize: '12px', padding: 0, opacity: 0.3 }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.3'}
                                 >
                                     ×
                                 </button>
+                            ) : (
+                                <span>{rIdx + 1}</span>
                             )}
                             <div
                                 className="row-resizer"
@@ -301,42 +293,65 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
                                     bottom: 0,
                                     height: '5px',
                                     cursor: 'row-resize',
-                                    zIndex: 1
+                                    zIndex: 1,
                                 }}
+                                role="separator"
+                                aria-label={`Resize row ${rIdx + 1}`}
                             />
                         </div>
 
-                        {/* Cells */}
+                        {/* Data Cells */}
                         {tableData.columns.map(col => {
                             const cell = row.cells[col.id];
                             const isEditing = editingCell?.rowId === row.id && editingCell?.colId === col.id;
 
                             return (
-                                <div key={col.id} style={{
+                                <div key={col.id} role="gridcell" style={{
                                     width: col.width,
                                     height: row.height,
-                                    borderRight: '1px solid #ddd',
-                                    borderBottom: '1px solid #ddd',
-                                    padding: '5px',
+                                    borderRight: cellBorder,
+                                    borderBottom: cellBorder,
+                                    padding: '4px 6px',
                                     flexShrink: 0,
                                     overflow: 'hidden',
                                     display: 'flex',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    cursor: 'text',
+                                    background: 'var(--color-surface)',
+                                    color: 'var(--color-text)',
+                                    fontSize: '13px',
+                                    transition: 'background var(--transition-fast)',
                                 }}
                                     onClick={() => !isEditing && startEditing(row.id, col.id, cell?.value || '')}
+                                    onMouseEnter={(e) => { if (!isEditing) e.currentTarget.style.background = 'var(--color-surface-hover)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-surface)'; }}
+                                    tabIndex={0}
+                                    aria-label={`Cell ${col.title}, row ${rIdx + 1}`}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !isEditing) {
+                                            startEditing(row.id, col.id, cell?.value || '');
+                                        }
+                                    }}
                                 >
                                     {isEditing ? (
-                                        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-                                            <input
-                                                type="text"
-                                                value={editValue}
-                                                onChange={(e) => setEditValue(e.target.value)}
-                                                onBlur={saveEdit}
-                                                onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                                                autoFocus
-                                                style={{ border: 'none', width: '100%', outline: 'none', padding: 0, background: 'transparent' }}
-                                            />
-                                        </div>
+                                        <input
+                                            type="text"
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            onBlur={saveEdit}
+                                            onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                                            autoFocus
+                                            aria-label={`Edit cell ${col.title}, row ${rIdx + 1}`}
+                                            style={{
+                                                border: 'none',
+                                                width: '100%',
+                                                outline: 'none',
+                                                padding: 0,
+                                                background: 'transparent',
+                                                color: 'var(--color-text)',
+                                                fontSize: '13px',
+                                            }}
+                                        />
                                     ) : (
                                         <div style={{ width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {cell?.value}
@@ -350,4 +365,6 @@ export const DynamicTable: React.FC<DynamicTableProps> = ({ tableData, onUpdateT
             </div>
         </div>
     );
-};
+});
+
+DynamicTable.displayName = 'DynamicTable';

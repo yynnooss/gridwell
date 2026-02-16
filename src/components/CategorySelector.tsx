@@ -11,7 +11,7 @@ interface CategorySelectorProps {
     hasUnsavedChanges: boolean;
 }
 
-export const CategorySelector: React.FC<CategorySelectorProps> = ({
+export const CategorySelector: React.FC<CategorySelectorProps> = React.memo(({
     categories,
     activeCategoryId,
     onSelectCategory,
@@ -24,18 +24,13 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Editing State
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState('');
 
-    // Add Modal State
     const [showAddModal, setShowAddModal] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
 
-    // Switch Confirmation Modal State
     const [pendingSwitchId, setPendingSwitchId] = useState<string | null>(null);
-
-    // Delete Confirmation Modal State
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const filteredCategories = useMemo(() => {
@@ -47,7 +42,6 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     const activeCategory = categories.find(c => c.id === activeCategoryId);
     const pendingCategory = categories.find(c => c.id === pendingSwitchId);
 
-    // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -63,13 +57,10 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             setIsOpen(false);
             return;
         }
-
         if (hasUnsavedChanges) {
-            // Show custom confirmation modal
             setPendingSwitchId(category.id);
             setIsOpen(false);
         } else {
-            // No unsaved changes — switch instantly
             onSelectCategory(category.id);
             setIsOpen(false);
             setSearchTerm('');
@@ -117,230 +108,158 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     };
 
     return (
-        <div className="category-selector" style={{ padding: '10px 20px', borderBottom: '1px solid #ddd', background: '#f8f9fa' }}>
-            <div className="flex-row" style={{ gap: '10px', alignItems: 'center' }}>
+        <div className="category-selector" role="region" aria-label="Category management">
+            <div className="flex-row" style={{ gap: '10px' }}>
 
                 {/* Custom Dropdown */}
-                <div ref={dropdownRef} style={{ position: 'relative', width: '250px' }}>
-                    {/* Trigger */}
+                <div ref={dropdownRef} style={{ position: 'relative', width: '260px' }}>
                     <div
                         onClick={() => setIsOpen(!isOpen)}
+                        role="combobox"
+                        aria-expanded={isOpen}
+                        aria-haspopup="listbox"
+                        aria-label="Select category"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen); } }}
                         style={{
-                            padding: '8px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            background: '#fff',
+                            padding: '8px 12px',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--color-surface)',
                             cursor: 'pointer',
                             display: 'flex',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            color: 'var(--color-text)',
+                            fontSize: '14px',
+                            transition: 'border-color var(--transition-fast)',
                         }}
                     >
-                        <span>{activeCategory?.title || 'Select Category'}</span>
-                        <span style={{ fontSize: '12px' }}>▼</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {activeCategory?.title || 'Select Category'}
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginLeft: '8px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--transition-fast)' }} aria-hidden="true">▼</span>
                     </div>
 
-                    {/* Dropdown Content */}
                     {isOpen && (
                         <div style={{
                             position: 'absolute',
                             top: '100%',
                             left: 0,
                             right: 0,
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            background: '#fff',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--color-surface)',
                             zIndex: 1000,
                             marginTop: '4px',
-                            boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                            boxShadow: 'var(--shadow-lg)',
+                            overflow: 'hidden',
+                            animation: 'fadeIn 0.15s ease',
                         }}>
                             <input
                                 type="text"
-                                placeholder="Search..."
+                                placeholder="Search categories..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 autoFocus
                                 style={{
                                     width: '100%',
-                                    padding: '8px',
+                                    padding: '10px 12px',
                                     border: 'none',
-                                    borderBottom: '1px solid #eee',
-                                    outline: 'none'
+                                    borderBottom: '1px solid var(--color-border)',
+                                    borderRadius: 0,
+                                    background: 'var(--color-surface)',
+                                    color: 'var(--color-text)',
+                                    fontSize: '13px',
                                 }}
                             />
-                            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            <div style={{ maxHeight: '200px', overflowY: 'auto' }} role="listbox" aria-label="Categories">
                                 {filteredCategories.length > 0 ? (
                                     filteredCategories.map(cat => (
                                         <div
                                             key={cat.id}
                                             onClick={() => handleSelectAttempt(cat)}
                                             style={{
-                                                padding: '8px',
+                                                padding: '9px 12px',
                                                 cursor: 'pointer',
-                                                background: cat.id === activeCategoryId ? '#f0f8ff' : 'transparent',
-                                                borderBottom: '1px solid #f9f9f9'
+                                                background: cat.id === activeCategoryId ? 'var(--color-primary-light)' : 'transparent',
+                                                color: cat.id === activeCategoryId ? 'var(--color-primary)' : 'var(--color-text)',
+                                                fontWeight: cat.id === activeCategoryId ? 600 : 400,
+                                                fontSize: '13px',
+                                                transition: 'background var(--transition-fast)',
                                             }}
-                                            onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                                            onMouseLeave={(e) => e.currentTarget.style.background = cat.id === activeCategoryId ? '#f0f8ff' : 'transparent'}
+                                            onMouseEnter={(e) => { if (cat.id !== activeCategoryId) e.currentTarget.style.background = 'var(--color-surface-hover)'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = cat.id === activeCategoryId ? 'var(--color-primary-light)' : 'transparent'; }}
                                         >
                                             {cat.title}
                                         </div>
                                     ))
                                 ) : (
-                                    <div style={{ padding: '8px', color: '#999', textAlign: 'center' }}>No results</div>
+                                    <div style={{ padding: '12px', color: 'var(--color-text-muted)', textAlign: 'center', fontSize: '13px' }}>No results</div>
                                 )}
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="flex-row" style={{ gap: '5px', marginLeft: 'auto' }}>
+                <div className="flex-row" style={{ gap: '6px', marginLeft: 'auto' }}>
                     {activeCategoryId && (
                         <>
                             {isEditing ? (
-                                <div className="flex-row" style={{ gap: '5px' }}>
-                                    <input
-                                        type="text"
-                                        value={editTitle}
-                                        onChange={(e) => setEditTitle(e.target.value)}
-                                        onBlur={saveTitle}
-                                        onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-                                        autoFocus
-                                    />
-                                </div>
+                                <input
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    onBlur={saveTitle}
+                                    onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
+                                    autoFocus
+                                    style={{ width: '160px' }}
+                                />
                             ) : (
-                                <button onClick={startEditing} title="Edit Category">✎</button>
+                                <button className="btn-ghost" onClick={startEditing} title="Rename Category" aria-label="Rename category">✎ Rename</button>
                             )}
-                            <button onClick={() => setShowDeleteConfirm(true)} title="Delete Category" style={{ color: 'red' }}>🗑️</button>
+                            <button className="btn-ghost btn-icon-danger" onClick={() => setShowDeleteConfirm(true)} title="Delete Category" aria-label="Delete category" style={{ color: 'var(--color-danger)' }}>
+                                🗑️
+                            </button>
                         </>
                     )}
-                    <button onClick={handleOpenAddModal} title="Add Category">[+] Add</button>
+                    <button className="btn-primary" onClick={handleOpenAddModal} aria-label="Add new category">+ Add Category</button>
                 </div>
             </div>
 
-            {/* Unsaved Changes Warning Modal (category switch) */}
+            {/* Unsaved Changes Warning */}
             {pendingSwitchId && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => setPendingSwitchId(null)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '420px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 12px 0' }}>Unsaved Changes</h3>
-                        <p style={{ margin: '0 0 20px 0', color: '#555', lineHeight: 1.5 }}>
-                            You have unsaved changes. Switching from "<strong>{activeCategory?.title || 'None'}</strong>" to "<strong>{pendingCategory?.title}</strong>" will not discard your changes, but they won't be saved to a layout until you click "Save Current Layout".
+                <div className="modal-overlay" onClick={() => setPendingSwitchId(null)} role="dialog" aria-modal="true" aria-label="Unsaved changes warning">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '420px' }}>
+                        <h3>Unsaved Changes</h3>
+                        <p>
+                            Switching from "<strong>{activeCategory?.title || 'None'}</strong>" to "<strong>{pendingCategory?.title}</strong>" will not discard your changes, but they won't be saved to a layout until you click "Save Current Layout".
                         </p>
-                        <p style={{ margin: '0 0 20px 0', color: '#555' }}>Continue switching?</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <button
-                                onClick={() => setPendingSwitchId(null)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
-                                onClick={confirmSwitch}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#007bff',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Yes
-                            </button>
+                        <p style={{ marginTop: '12px' }}>Continue switching?</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setPendingSwitchId(null)}>Cancel</button>
+                            <button className="btn-primary" onClick={confirmSwitch}>Continue</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Delete Category Confirmation Modal */}
+            {/* Delete Confirmation */}
             {showDeleteConfirm && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={() => setShowDeleteConfirm(false)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '360px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 20px 0' }}>Delete Category?</h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)} role="dialog" aria-modal="true" aria-label="Delete category confirmation">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
+                        <h3>Delete Category "{activeCategory?.title}"?</h3>
+                        <p>This will permanently delete this category and all its layers and tables.</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
                             <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                No
-                            </button>
-                            <button
+                                className="btn-danger"
                                 onClick={() => {
-                                    if (activeCategoryId) {
-                                        onDeleteCategory(activeCategoryId);
-                                    }
+                                    if (activeCategoryId) onDeleteCategory(activeCategoryId);
                                     setShowDeleteConfirm(false);
                                 }}
-                                style={{
-                                    padding: '8px 24px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#dc3545',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
                             >
-                                Yes
+                                Delete
                             </button>
                         </div>
                     </div>
@@ -349,33 +268,9 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
 
             {/* Add Category Modal */}
             {showAddModal && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2000
-                    }}
-                    onClick={handleCancelAdd}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '24px',
-                            width: '400px',
-                            maxWidth: '90vw',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                        }}
-                    >
-                        <h3 style={{ margin: '0 0 16px 0' }}>Add New Category</h3>
+                <div className="modal-overlay" onClick={handleCancelAdd} role="dialog" aria-modal="true" aria-label="Add category">
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '400px' }}>
+                        <h3>Add New Category</h3>
                         <input
                             type="text"
                             placeholder="Category name"
@@ -383,45 +278,17 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                             onChange={(e) => setNewCategoryName(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleDeploy()}
                             autoFocus
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                fontSize: '14px',
-                                marginBottom: '20px'
-                            }}
+                            style={{ marginBottom: '20px' }}
                         />
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <button
-                                onClick={handleCancelAdd}
-                                style={{
-                                    padding: '8px 20px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '4px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleDeploy}
-                                style={{
-                                    padding: '8px 20px',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    background: '#007bff',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Deploy
-                            </button>
+                        <div className="modal-actions">
+                            <button onClick={handleCancelAdd}>Cancel</button>
+                            <button className="btn-primary" onClick={handleDeploy}>Create</button>
                         </div>
                     </div>
                 </div>
             )}
         </div>
     );
-};
+});
+
+CategorySelector.displayName = 'CategorySelector';
