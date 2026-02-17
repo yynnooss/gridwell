@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useRef } from 'react';
 import type { SidebarItem } from '../types';
+import {
+    Pencil, X, GripVertical, Undo, Redo, Search, Printer, Download, Upload,
+    Save, FolderOpen, Trash, PanelLeftClose, PanelLeftOpen, modKey,
+} from './Icons';
 
 interface SavedConfig {
     savedAt: string;
@@ -33,6 +37,8 @@ interface SidebarProps {
     canRedo: boolean;
     onUndo: () => void;
     onRedo: () => void;
+    collapsed: boolean;
+    onToggleCollapsed: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = React.memo(({
@@ -57,6 +63,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
     canRedo,
     onUndo,
     onRedo,
+    collapsed,
+    onToggleCollapsed,
 }) => {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState(projectTitle);
@@ -119,7 +127,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
         setDragIndex(index);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(index));
-        // Make drag image semi-transparent
         if (e.currentTarget instanceof HTMLElement) {
             e.currentTarget.style.opacity = '0.5';
         }
@@ -163,11 +170,18 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
         setDragOverIndex(null);
     }, [dragIndex, onReorderItems]);
 
+    // Category count badge
+    const getCategoryCount = (item: SidebarItem) => item.categories.length;
+
     return (
-        <nav className="sidebar" role="navigation" aria-label="Main navigation">
+        <nav className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`} role="navigation" aria-label="Main navigation">
             {/* Sidebar Header */}
             <div className="sidebar-header">
-                {isEditingTitle ? (
+                {collapsed ? (
+                    <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapsed} title="Expand sidebar" aria-label="Expand sidebar">
+                        <PanelLeftOpen size={18} />
+                    </button>
+                ) : isEditingTitle ? (
                     <input
                         type="text"
                         value={tempTitle}
@@ -185,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                         </h3>
                         <div className="flex-row" style={{ gap: '4px', flexShrink: 0 }}>
                             <button className="btn-icon" onClick={() => setIsEditingTitle(true)} title="Rename project" aria-label="Rename project" style={{ color: 'var(--color-sidebar-text)' }}>
-                                ✎
+                                <Pencil size={14} />
                             </button>
                             <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} role="switch" aria-checked={theme === 'dark'} />
                         </div>
@@ -194,71 +208,65 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
             </div>
 
             {/* Toolbar */}
-            <div className="flex-row" style={{ padding: '8px 20px', gap: '4px', borderBottom: '1px solid var(--color-sidebar-divider)' }} role="toolbar" aria-label="Actions toolbar">
-                <button
-                    className="btn-icon"
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    title="Undo (⌘Z)"
-                    aria-label="Undo"
-                    style={{ color: canUndo ? 'var(--color-sidebar-text)' : 'var(--color-sidebar-divider)', fontSize: '14px' }}
-                >
-                    ↩
-                </button>
-                <button
-                    className="btn-icon"
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    title="Redo (⌘⇧Z)"
-                    aria-label="Redo"
-                    style={{ color: canRedo ? 'var(--color-sidebar-text)' : 'var(--color-sidebar-divider)', fontSize: '14px' }}
-                >
-                    ↪
-                </button>
-                <div style={{ flexGrow: 1 }} />
-                <button
-                    className="btn-icon"
-                    onClick={onOpenSearch}
-                    title="Search (⌘K)"
-                    aria-label="Open global search"
-                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
-                >
-                    🔍
-                </button>
-                <button
-                    className="btn-icon"
-                    onClick={onPrint}
-                    title="Print layout"
-                    aria-label="Print current layout"
-                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
-                >
-                    🖨️
-                </button>
-                <button
-                    className="btn-icon"
-                    onClick={onExport}
-                    title="Export as JSON"
-                    aria-label="Export project as JSON"
-                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
-                >
-                    ↓
-                </button>
-                <button
-                    className="btn-icon"
-                    onClick={onImport}
-                    title="Import from JSON"
-                    aria-label="Import project from JSON"
-                    style={{ color: 'var(--color-sidebar-text)', fontSize: '13px' }}
-                >
-                    ↑
-                </button>
-            </div>
+            {!collapsed && (
+                <div className="sidebar-toolbar" role="toolbar" aria-label="Actions toolbar">
+                    <button
+                        className="btn-icon"
+                        onClick={onUndo}
+                        disabled={!canUndo}
+                        title={`Undo (${modKey}+Z)`}
+                        aria-label="Undo"
+                    >
+                        <Undo size={15} />
+                    </button>
+                    <button
+                        className="btn-icon"
+                        onClick={onRedo}
+                        disabled={!canRedo}
+                        title={`Redo (${modKey}+Shift+Z)`}
+                        aria-label="Redo"
+                    >
+                        <Redo size={15} />
+                    </button>
+                    <div style={{ flexGrow: 1 }} />
+                    <button
+                        className="btn-icon"
+                        onClick={onOpenSearch}
+                        title={`Search (${modKey}+K)`}
+                        aria-label="Open global search"
+                    >
+                        <Search size={15} />
+                    </button>
+                    <button className="btn-icon" onClick={onPrint} title="Print layout" aria-label="Print current layout">
+                        <Printer size={15} />
+                    </button>
+                    <button className="btn-icon" onClick={onExport} title="Export as JSON" aria-label="Export project as JSON">
+                        <Download size={15} />
+                    </button>
+                    <button className="btn-icon" onClick={onImport} title="Import from JSON" aria-label="Import project from JSON">
+                        <Upload size={15} />
+                    </button>
+                    <button className="btn-icon" onClick={onToggleCollapsed} title="Collapse sidebar" aria-label="Collapse sidebar">
+                        <PanelLeftClose size={15} />
+                    </button>
+                </div>
+            )}
+
+            {/* Collapsed mini-toolbar */}
+            {collapsed && (
+                <div className="sidebar-toolbar sidebar-toolbar-collapsed" role="toolbar" aria-label="Actions toolbar">
+                    <button className="btn-icon" onClick={onUndo} disabled={!canUndo} title={`Undo (${modKey}+Z)`} aria-label="Undo"><Undo size={15} /></button>
+                    <button className="btn-icon" onClick={onRedo} disabled={!canRedo} title={`Redo (${modKey}+Shift+Z)`} aria-label="Redo"><Redo size={15} /></button>
+                    <button className="btn-icon" onClick={onOpenSearch} title={`Search (${modKey}+K)`} aria-label="Open global search"><Search size={15} /></button>
+                    <button className="btn-icon" onClick={onPrint} title="Print layout" aria-label="Print current layout"><Printer size={15} /></button>
+                </div>
+            )}
 
             {/* Sidebar Items (with drag-to-reorder) */}
             <div className="sidebar-items" role="list" aria-label="Sidebar items">
-                {items.length === 0 && (
+                {!collapsed && items.length === 0 && (
                     <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--color-sidebar-text)', fontSize: '13px', opacity: 0.6 }}>
-                        No items yet. Click "+ Add New" to start.
+                        No items yet. Click &quot;+ Add New&quot; to start.
                     </div>
                 )}
                 {items.map((item, index) => (
@@ -268,15 +276,18 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                         onClick={() => onSelectItem(item.id)}
                         role="listitem"
                         aria-current={activeItemId === item.id ? 'true' : undefined}
-                        draggable={editingItemId !== item.id}
+                        draggable={editingItemId !== item.id && !collapsed}
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragEnd={handleDragEnd}
                         onDragEnter={(e) => handleDragEnter(e, index)}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, index)}
+                        title={collapsed ? item.title : undefined}
                     >
-                        {editingItemId === item.id ? (
+                        {collapsed ? (
+                            <span className="sidebar-item-letter">{item.title.charAt(0).toUpperCase()}</span>
+                        ) : editingItemId === item.id ? (
                             <input
                                 type="text"
                                 value={editItemTitle}
@@ -290,7 +301,9 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                         ) : (
                             <div className="flex-row" style={{ justifyContent: 'space-between', width: '100%' }}>
                                 <span className="flex-row" style={{ gap: '6px', flexGrow: 1, overflow: 'hidden' }}>
-                                    <span className="drag-handle" aria-hidden="true" title="Drag to reorder" style={{ cursor: 'grab', opacity: 0.5, fontSize: '10px', flexShrink: 0 }}>⠿</span>
+                                    <span className="drag-handle" aria-hidden="true" title="Drag to reorder" style={{ cursor: 'grab', flexShrink: 0 }}>
+                                        <GripVertical size={12} />
+                                    </span>
                                     <span
                                         onDoubleClick={(e) => {
                                             e.stopPropagation();
@@ -301,8 +314,13 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                                     >
                                         {item.title}
                                     </span>
+                                    {getCategoryCount(item) > 0 && (
+                                        <span className="sidebar-badge" title={`${getCategoryCount(item)} categories`}>
+                                            {getCategoryCount(item)}
+                                        </span>
+                                    )}
                                 </span>
-                                <div className="flex-row" style={{ gap: '2px', flexShrink: 0 }}>
+                                <div className="flex-row sidebar-item-actions" style={{ gap: '2px', flexShrink: 0 }}>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -310,9 +328,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                                         }}
                                         title="Rename"
                                         aria-label={`Rename ${item.title}`}
-                                        style={{ fontSize: '13px' }}
                                     >
-                                        ✎
+                                        <Pencil size={13} />
                                     </button>
                                     <button
                                         onClick={(e) => {
@@ -321,9 +338,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                                         }}
                                         title="Delete"
                                         aria-label={`Delete ${item.title}`}
-                                        style={{ fontSize: '16px' }}
                                     >
-                                        ×
+                                        <X size={14} />
                                     </button>
                                 </div>
                             </div>
@@ -356,23 +372,36 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
 
             {/* Sidebar Footer */}
             <div className="sidebar-footer">
-                <button onClick={onAddItem} style={{ background: 'var(--color-sidebar-surface)', color: 'var(--color-sidebar-text-bright)', border: '1px solid var(--color-sidebar-divider)' }} aria-label="Add new sidebar item">
-                    + Add New
-                </button>
-                <button
-                    className="btn-success"
-                    onClick={() => setSaveStep('confirm')}
-                    aria-label="Save current layout"
-                >
-                    💾 Save Layout <span className="kbd">⌘S</span>
-                </button>
-                <button
-                    className="btn-info"
-                    onClick={() => setShowSavedLayouts(true)}
-                    aria-label="View saved layouts"
-                >
-                    📋 Saved Layouts
-                </button>
+                {collapsed ? (
+                    <>
+                        <button onClick={onAddItem} title="Add new item" aria-label="Add new sidebar item" className="sidebar-footer-icon-btn">
+                            <span style={{ fontSize: '16px', fontWeight: 600 }}>+</span>
+                        </button>
+                        <button onClick={() => setSaveStep('confirm')} title="Save layout" aria-label="Save current layout" className="sidebar-footer-icon-btn btn-success">
+                            <Save size={16} />
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button onClick={onAddItem} style={{ background: 'var(--color-sidebar-surface)', color: 'var(--color-sidebar-text-bright)', border: '1px solid var(--color-sidebar-divider)' }} aria-label="Add new sidebar item">
+                            + Add New
+                        </button>
+                        <button
+                            className="btn-success"
+                            onClick={() => setSaveStep('confirm')}
+                            aria-label="Save current layout"
+                        >
+                            <Save size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} /> Save Layout <span className="kbd">{modKey}+S</span>
+                        </button>
+                        <button
+                            className="btn-info"
+                            onClick={() => setShowSavedLayouts(true)}
+                            aria-label="View saved layouts"
+                        >
+                            <FolderOpen size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} /> Saved Layouts
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Save Layout Modal */}
@@ -489,7 +518,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                                                 title="Delete Layout"
                                                 aria-label={`Delete layout: ${name}`}
                                             >
-                                                🗑️
+                                                <Trash size={14} />
                                             </button>
                                         </div>
                                     ))}
@@ -508,7 +537,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
             {deleteLayoutName && (
                 <div className="modal-overlay" onClick={() => setDeleteLayoutName(null)} style={{ zIndex: 3000 }} role="dialog" aria-modal="true" aria-label="Delete layout confirmation">
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
-                        <h3>Delete Layout "{deleteLayoutName}"?</h3>
+                        <h3>Delete Layout &quot;{deleteLayoutName}&quot;?</h3>
                         <p>This action cannot be undone.</p>
                         <div className="modal-actions">
                             <button onClick={() => setDeleteLayoutName(null)}>Cancel</button>

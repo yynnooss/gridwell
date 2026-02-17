@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { TableData } from '../types';
+import { X, Plus } from './Icons';
 
 interface DynamicTableProps {
     tableData: TableData;
@@ -158,8 +159,12 @@ export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData
         <div className="dynamic-table-container" ref={tableRef} style={{ display: 'flex', flexDirection: 'column' }} role="region" aria-label={`Table: ${tableData.title}`}>
             {/* Toolbar */}
             <div className="table-toolbar flex-row" style={{ gap: '8px' }} role="toolbar" aria-label="Table structure controls">
-                <button onClick={addColumn} aria-label="Add column" style={{ fontSize: '12px', padding: '3px 10px' }}>+ Col</button>
-                <button onClick={addRow} aria-label="Add row" style={{ fontSize: '12px', padding: '3px 10px' }}>+ Row</button>
+                <button onClick={addColumn} aria-label="Add column" style={{ fontSize: '12px', padding: '3px 10px' }}>
+                    <Plus size={11} style={{ marginRight: '3px', verticalAlign: '-2px' }} /> Col
+                </button>
+                <button onClick={addRow} aria-label="Add row" style={{ fontSize: '12px', padding: '3px 10px' }}>
+                    <Plus size={11} style={{ marginRight: '3px', verticalAlign: '-2px' }} /> Row
+                </button>
             </div>
 
             {/* Table Area */}
@@ -170,7 +175,7 @@ export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData
 
                     {/* Column Headers */}
                     {tableData.columns.map(col => (
-                        <div key={col.id} role="columnheader" style={{
+                        <div key={col.id} role="columnheader" className="table-col-header" style={{
                             width: col.width,
                             borderRight: cellBorder,
                             borderBottom: cellBorder,
@@ -220,15 +225,12 @@ export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData
                             )}
                             {tableData.columns.length > 1 && (
                                 <button
-                                    className="btn-icon btn-icon-danger"
+                                    className="btn-icon btn-icon-danger col-delete-btn"
                                     onClick={(e) => { e.stopPropagation(); removeColumn(col.id); }}
                                     title="Delete column"
                                     aria-label={`Delete column ${col.title}`}
-                                    style={{ fontSize: '12px', padding: '0 2px', opacity: 0.3 }}
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.3'}
                                 >
-                                    ×
+                                    <X size={12} />
                                 </button>
                             )}
                             <div
@@ -254,7 +256,7 @@ export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData
                 {tableData.rows.map((row, rIdx) => (
                     <div key={row.id} style={{ display: 'flex', minWidth: 'fit-content' }} role="row">
                         {/* Row Header */}
-                        <div role="rowheader" style={{
+                        <div role="rowheader" className="table-row-header" style={{
                             width: '40px',
                             height: row.height,
                             borderRight: cellBorder,
@@ -270,15 +272,12 @@ export const DynamicTable: React.FC<DynamicTableProps> = React.memo(({ tableData
                         }}>
                             {tableData.rows.length > 1 ? (
                                 <button
-                                    className="btn-icon btn-icon-danger"
+                                    className="btn-icon btn-icon-danger row-delete-btn"
                                     onClick={() => removeRow(row.id)}
                                     title="Delete row"
                                     aria-label={`Delete row ${rIdx + 1}`}
-                                    style={{ fontSize: '12px', padding: 0, opacity: 0.3 }}
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.3'}
                                 >
-                                    ×
+                                    <X size={12} />
                                 </button>
                             ) : (
                                 <span>{rIdx + 1}</span>

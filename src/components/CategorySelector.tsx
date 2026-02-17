@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Category } from '../types';
+import { Pencil, Trash, ChevronDown } from './Icons';
 
 interface CategorySelectorProps {
     categories: Category[];
@@ -138,7 +139,9 @@ export const CategorySelector: React.FC<CategorySelectorProps> = React.memo(({
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {activeCategory?.title || 'Select Category'}
                         </span>
-                        <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginLeft: '8px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--transition-fast)' }} aria-hidden="true">▼</span>
+                        <span style={{ marginLeft: '8px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--transition-fast)', display: 'flex', alignItems: 'center' }} aria-hidden="true">
+                            <ChevronDown size={14} />
+                        </span>
                     </div>
 
                     {isOpen && (
@@ -216,10 +219,12 @@ export const CategorySelector: React.FC<CategorySelectorProps> = React.memo(({
                                     style={{ width: '160px' }}
                                 />
                             ) : (
-                                <button className="btn-ghost" onClick={startEditing} title="Rename Category" aria-label="Rename category">✎ Rename</button>
+                                <button className="btn-ghost" onClick={startEditing} title="Rename Category" aria-label="Rename category">
+                                    <Pencil size={13} style={{ marginRight: '4px', verticalAlign: '-2px' }} /> Rename
+                                </button>
                             )}
                             <button className="btn-ghost btn-icon-danger" onClick={() => setShowDeleteConfirm(true)} title="Delete Category" aria-label="Delete category" style={{ color: 'var(--color-danger)' }}>
-                                🗑️
+                                <Trash size={14} />
                             </button>
                         </>
                     )}
@@ -233,7 +238,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = React.memo(({
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '420px' }}>
                         <h3>Unsaved Changes</h3>
                         <p>
-                            Switching from "<strong>{activeCategory?.title || 'None'}</strong>" to "<strong>{pendingCategory?.title}</strong>" will not discard your changes, but they won't be saved to a layout until you click "Save Current Layout".
+                            Switching from &quot;<strong>{activeCategory?.title || 'None'}</strong>&quot; to &quot;<strong>{pendingCategory?.title}</strong>&quot; will not discard your changes, but they won&apos;t be saved to a layout until you click &quot;Save Current Layout&quot;.
                         </p>
                         <p style={{ marginTop: '12px' }}>Continue switching?</p>
                         <div className="modal-actions">
@@ -248,7 +253,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = React.memo(({
             {showDeleteConfirm && (
                 <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)} role="dialog" aria-modal="true" aria-label="Delete category confirmation">
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
-                        <h3>Delete Category "{activeCategory?.title}"?</h3>
+                        <h3>Delete Category &quot;{activeCategory?.title}&quot;?</h3>
                         <p>This will permanently delete this category and all its layers and tables.</p>
                         <div className="modal-actions">
                             <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>

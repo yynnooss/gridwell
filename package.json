@@ -1,7 +1,7 @@
 {
   "name": "gridwell",
   "private": false,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "A modular admin panel for organizing projects with a hierarchical sidebar, categories, layers, and dynamic spreadsheet tables — all with localStorage persistence.",
   "author": "bw",
   "license": "MIT",

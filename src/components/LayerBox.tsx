@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Layer, TableData } from '../types';
 import { DynamicTable } from './DynamicTable';
+import {
+    ChevronUp, ChevronDown, Copy, Trash, Bold, Italic, ChevronRight, Plus,
+} from './Icons';
 
 const MAX_TABLES = 10;
 
@@ -64,6 +67,21 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
     const [editTableTitle, setEditTableTitle] = useState('');
 
     const [descFocused, setDescFocused] = useState(false);
+
+    // Track collapsed tables
+    const [collapsedTables, setCollapsedTables] = useState<Set<string>>(new Set());
+
+    const toggleTableCollapse = useCallback((tableId: string) => {
+        setCollapsedTables(prev => {
+            const next = new Set(prev);
+            if (next.has(tableId)) {
+                next.delete(tableId);
+            } else {
+                next.add(tableId);
+            }
+            return next;
+        });
+    }, []);
 
     useEffect(() => {
         if (descRef.current && !descFocused) {
@@ -208,9 +226,8 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
                             disabled={index === 0}
                             title="Move up"
                             aria-label="Move layer up"
-                            style={{ fontSize: '12px' }}
                         >
-                            ▲
+                            <ChevronUp size={14} />
                         </button>
                         <button
                             className="btn-icon"
@@ -218,9 +235,8 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
                             disabled={index === totalLayers - 1}
                             title="Move down"
                             aria-label="Move layer down"
-                            style={{ fontSize: '12px' }}
                         >
-                            ▼
+                            <ChevronDown size={14} />
                         </button>
                     </div>
 
@@ -243,15 +259,14 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
                         aria-label="Layer title"
                     />
 
-                    <div className="flex-row" style={{ gap: '2px', flexShrink: 0 }}>
+                    <div className="flex-row" style={{ gap: '4px', flexShrink: 0 }}>
                         <button
                             className="btn-icon"
                             onClick={() => onDuplicateLayer(layer.id)}
                             title="Duplicate Layer"
                             aria-label="Duplicate layer"
-                            style={{ fontSize: '14px' }}
                         >
-                            📋
+                            <Copy size={14} />
                         </button>
                         <button
                             className="btn-icon btn-icon-danger"
@@ -259,32 +274,30 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
                             title="Remove Layer"
                             aria-label="Remove layer"
                         >
-                            🗑️
+                            <Trash size={14} />
                         </button>
                     </div>
                 </div>
 
                 {/* Rich Text Toolbar */}
-                <div className="flex-row" style={{ gap: '4px', marginBottom: '6px' }} role="toolbar" aria-label="Text formatting">
+                <div className="flex-row rich-text-toolbar" role="toolbar" aria-label="Text formatting">
                     <button
-                        className="btn-ghost"
+                        className="btn-format"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execFormat('bold')}
                         title="Bold"
                         aria-label="Bold"
-                        style={{ fontWeight: 700, fontSize: '12px', padding: '2px 8px' }}
                     >
-                        B
+                        <Bold size={14} />
                     </button>
                     <button
-                        className="btn-ghost"
+                        className="btn-format"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execFormat('italic')}
                         title="Italic"
                         aria-label="Italic"
-                        style={{ fontStyle: 'italic', fontSize: '12px', padding: '2px 8px' }}
                     >
-                        I
+                        <Italic size={14} />
                     </button>
                 </div>
 
@@ -321,101 +334,119 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
             }}>
                 {layer.tables.length === 0 ? (
                     <div className="empty-state" style={{ flexGrow: 1, padding: '16px' }}>
-                        <div style={{ fontSize: '13px' }}>No tables — standalone design element</div>
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>No tables — standalone design element</div>
                     </div>
                 ) : (
-                    layer.tables.map((table, tIdx) => (
-                        <div key={table.id} style={{ borderBottom: tIdx < layer.tables.length - 1 ? '2px solid var(--color-border)' : 'none' }}>
-                            {/* Table header bar */}
-                            <div className="table-toolbar flex-row" style={{ gap: '6px' }}>
-                                <button
-                                    className="btn-icon"
-                                    onClick={() => handleReorderTable(table.id, 'up')}
-                                    disabled={tIdx === 0}
-                                    title="Move table up"
-                                    aria-label="Move table up"
-                                    style={{ fontSize: '10px' }}
-                                >
-                                    ▲
-                                </button>
-                                <button
-                                    className="btn-icon"
-                                    onClick={() => handleReorderTable(table.id, 'down')}
-                                    disabled={tIdx === layer.tables.length - 1}
-                                    title="Move table down"
-                                    aria-label="Move table down"
-                                    style={{ fontSize: '10px' }}
-                                >
-                                    ▼
-                                </button>
-
-                                {editingTableId === table.id ? (
-                                    <input
-                                        type="text"
-                                        value={editTableTitle}
-                                        onChange={(e) => setEditTableTitle(e.target.value)}
-                                        onBlur={saveTableTitle}
-                                        onKeyDown={(e) => e.key === 'Enter' && saveTableTitle()}
-                                        autoFocus
-                                        aria-label="Table title"
-                                        style={{
-                                            fontWeight: 600,
-                                            flexGrow: 1,
-                                            border: 'none',
-                                            background: 'transparent',
-                                            outline: '2px solid var(--color-primary)',
-                                            borderRadius: 'var(--radius-sm)',
-                                            padding: '2px 6px',
-                                            fontSize: '13px',
-                                            color: 'var(--color-text)',
-                                        }}
-                                    />
-                                ) : (
-                                    <span
-                                        onDoubleClick={() => {
-                                            setEditingTableId(table.id);
-                                            setEditTableTitle(table.title);
-                                        }}
-                                        style={{ fontWeight: 600, color: 'var(--color-text-secondary)', flexGrow: 1, cursor: 'text', userSelect: 'none', fontSize: '13px' }}
-                                        title="Double-click to rename"
+                    layer.tables.map((table, tIdx) => {
+                        const isCollapsed = collapsedTables.has(table.id);
+                        return (
+                            <div key={table.id} style={{ borderBottom: tIdx < layer.tables.length - 1 ? '2px solid var(--color-border)' : 'none' }}>
+                                {/* Table header bar */}
+                                <div className="table-toolbar flex-row" style={{ gap: '6px' }}>
+                                    {/* Collapse toggle */}
+                                    <button
+                                        className="btn-icon table-collapse-btn"
+                                        onClick={() => toggleTableCollapse(table.id)}
+                                        title={isCollapsed ? 'Expand table' : 'Collapse table'}
+                                        aria-label={isCollapsed ? 'Expand table' : 'Collapse table'}
+                                        aria-expanded={!isCollapsed}
                                     >
-                                        {table.title}
+                                        <ChevronRight size={13} style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.15s ease' }} />
+                                    </button>
+
+                                    <button
+                                        className="btn-icon"
+                                        onClick={() => handleReorderTable(table.id, 'up')}
+                                        disabled={tIdx === 0}
+                                        title="Move table up"
+                                        aria-label="Move table up"
+                                    >
+                                        <ChevronUp size={12} />
+                                    </button>
+                                    <button
+                                        className="btn-icon"
+                                        onClick={() => handleReorderTable(table.id, 'down')}
+                                        disabled={tIdx === layer.tables.length - 1}
+                                        title="Move table down"
+                                        aria-label="Move table down"
+                                    >
+                                        <ChevronDown size={12} />
+                                    </button>
+
+                                    {editingTableId === table.id ? (
+                                        <input
+                                            type="text"
+                                            value={editTableTitle}
+                                            onChange={(e) => setEditTableTitle(e.target.value)}
+                                            onBlur={saveTableTitle}
+                                            onKeyDown={(e) => e.key === 'Enter' && saveTableTitle()}
+                                            autoFocus
+                                            aria-label="Table title"
+                                            style={{
+                                                fontWeight: 600,
+                                                flexGrow: 1,
+                                                border: 'none',
+                                                background: 'transparent',
+                                                outline: '2px solid var(--color-primary)',
+                                                borderRadius: 'var(--radius-sm)',
+                                                padding: '2px 6px',
+                                                fontSize: '13px',
+                                                color: 'var(--color-text)',
+                                            }}
+                                        />
+                                    ) : (
+                                        <span
+                                            onDoubleClick={() => {
+                                                setEditingTableId(table.id);
+                                                setEditTableTitle(table.title);
+                                            }}
+                                            style={{ fontWeight: 600, color: 'var(--color-text-secondary)', flexGrow: 1, cursor: 'text', userSelect: 'none', fontSize: '13px' }}
+                                            title="Double-click to rename"
+                                        >
+                                            {table.title}
+                                        </span>
+                                    )}
+
+                                    {/* Row/Col count */}
+                                    <span className="table-meta-badge" title={`${table.rows.length} rows × ${table.columns.length} cols`}>
+                                        {table.rows.length}×{table.columns.length}
                                     </span>
+
+                                    <button
+                                        className="btn-icon"
+                                        onClick={() => handleDuplicateTable(table.id)}
+                                        title="Duplicate table"
+                                        aria-label="Duplicate table"
+                                    >
+                                        <Copy size={13} />
+                                    </button>
+                                    <button
+                                        className="btn-icon btn-icon-danger"
+                                        onClick={() => setDeleteTableId(table.id)}
+                                        title="Delete table"
+                                        aria-label="Delete table"
+                                    >
+                                        <Trash size={13} />
+                                    </button>
+                                </div>
+
+                                {/* Collapsible table body */}
+                                {!isCollapsed && (
+                                    <DynamicTable
+                                        tableData={table}
+                                        onUpdateTable={(updates) => handleUpdateTable(table.id, updates)}
+                                    />
                                 )}
-
-                                <button
-                                    className="btn-icon"
-                                    onClick={() => handleDuplicateTable(table.id)}
-                                    title="Duplicate table"
-                                    aria-label="Duplicate table"
-                                    style={{ fontSize: '12px' }}
-                                >
-                                    📋
-                                </button>
-                                <button
-                                    className="btn-icon btn-icon-danger"
-                                    onClick={() => setDeleteTableId(table.id)}
-                                    title="Delete table"
-                                    aria-label="Delete table"
-                                    style={{ fontSize: '13px' }}
-                                >
-                                    🗑️
-                                </button>
                             </div>
-
-                            <DynamicTable
-                                tableData={table}
-                                onUpdateTable={(updates) => handleUpdateTable(table.id, updates)}
-                            />
-                        </div>
-                    ))
+                        );
+                    })
                 )}
 
                 {/* Add Table */}
                 {layer.tables.length < MAX_TABLES && (
                     <div style={{ padding: '10px', textAlign: 'center', borderTop: layer.tables.length > 0 ? '1px solid var(--color-border)' : 'none', position: 'relative', zIndex: 2 }}>
                         <button className="btn-primary" onClick={handleAddTable} aria-label="Add new table" style={{ fontSize: '12px', padding: '6px 16px' }}>
-                            + Add Table ({layer.tables.length}/{MAX_TABLES})
+                            <Plus size={12} style={{ marginRight: '4px', verticalAlign: '-2px' }} /> Add Table ({layer.tables.length}/{MAX_TABLES})
                         </button>
                     </div>
                 )}
@@ -439,7 +470,7 @@ export const LayerBox: React.FC<LayerBoxProps> = React.memo(({ layer, onUpdateLa
             {showDeleteConfirm && (
                 <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)} role="dialog" aria-modal="true" aria-label="Delete layer confirmation">
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '360px' }}>
-                        <h3>Delete Layer "{layer.title}"?</h3>
+                        <h3>Delete Layer &quot;{layer.title}&quot;?</h3>
                         <p>This will permanently delete this layer and all its tables.</p>
                         <div className="modal-actions">
                             <button onClick={() => setShowDeleteConfirm(false)}>Cancel</button>

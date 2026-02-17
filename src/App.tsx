@@ -4,11 +4,13 @@ import { Sidebar } from './components/Sidebar';
 import { CategorySelector } from './components/CategorySelector';
 import { LayerBox } from './components/LayerBox';
 import { SearchModal } from './components/SearchModal';
+import { Hand, LayoutGrid, FolderOpen, Monitor, ChevronRight, modKey } from './components/Icons';
 import type { AppState, SidebarItem, Category, Layer } from './types';
 
 const STORAGE_KEY = 'admin-panel-state';
 const SAVED_CONFIGS_KEY = 'admin-panel-saved-configs';
 const THEME_KEY = 'gridwell-theme';
+const SIDEBAR_COLLAPSED_KEY = 'gridwell-sidebar-collapsed';
 const MAX_UNDO_STEPS = 50;
 
 // Legacy layer shape before migration to tables[]
@@ -71,9 +73,16 @@ const loadTheme = (): 'light' | 'dark' => {
   return 'light';
 };
 
+const loadSidebarCollapsed = (): boolean => {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  } catch { return false; }
+};
+
 function App() {
   const [appState, setAppState] = useState<AppState>(loadState);
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(loadSidebarCollapsed);
 
   // Undo/Redo stacks
   const [undoStack, setUndoStack] = useState<AppState[]>([]);
@@ -92,6 +101,11 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  // Persist sidebar collapsed preference
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   const hasUnsavedChanges = JSON.stringify(appState) !== lastSavedSnapshot;
 
@@ -156,7 +170,7 @@ function App() {
         e.preventDefault();
         handleRedo();
       }
-      // ⌘K — Global Search
+      // Global Search
       if (mod && e.key === 'k') {
         e.preventDefault();
         setSearchOpen(prev => {
@@ -164,10 +178,15 @@ function App() {
           return !prev;
         });
       }
-      // ⌘P — Print
+      // Print
       if (mod && e.key === 'p') {
         e.preventDefault();
         window.print();
+      }
+      // Toggle sidebar collapse: Cmd/Ctrl + \
+      if (mod && e.key === '\\') {
+        e.preventDefault();
+        setSidebarCollapsed(c => !c);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -176,6 +195,11 @@ function App() {
 
   // Toggle theme
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+
+  // Toggle sidebar collapsed
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed(c => !c);
+  }, []);
 
   // Export state as JSON file
   const handleExport = useCallback(() => {
@@ -509,7 +533,7 @@ function App() {
     <div className="app-container">
       {/* Mobile Warning */}
       <div className="mobile-warning" role="alert">
-        <div className="mobile-warning-icon">💻</div>
+        <div className="mobile-warning-icon" aria-hidden="true"><Monitor size={48} /></div>
         <h2>Gridwell works best on desktop</h2>
         <p>For the best experience, please use a screen wider than 768px.</p>
       </div>
@@ -536,8 +560,25 @@ function App() {
         canRedo={redoStack.length > 0}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebarCollapsed}
       />
       <main className="main-content" role="main">
+        {/* Breadcrumb */}
+        {activeSidebarItem && (
+          <div className="breadcrumb-bar" aria-label="Breadcrumb">
+            <span className="breadcrumb-item">{appState.projectTitle}</span>
+            <ChevronRight size={12} />
+            <span className="breadcrumb-item">{activeSidebarItem.title}</span>
+            {activeCategory && (
+              <>
+                <ChevronRight size={12} />
+                <span className="breadcrumb-item breadcrumb-active">{activeCategory.title}</span>
+              </>
+            )}
+          </div>
+        )}
+
         {activeSidebarItem && (
           <CategorySelector
             categories={activeSidebarItem.categories}
@@ -570,29 +611,34 @@ function App() {
               ))}
               {activeCategory.layers.length === 0 && (
                 <div className="empty-state">
-                  <div className="empty-state-icon" aria-hidden="true">📐</div>
+                  <div className="empty-state-icon" aria-hidden="true"><LayoutGrid size={48} /></div>
                   <div style={{ fontWeight: 500 }}>No layers yet</div>
-                  <div>Click "+ Add Layer" to get started</div>
+                  <div>Click &quot;+ Add Layer&quot; to get started</div>
                 </div>
               )}
             </>
           ) : activeSidebarItem ? (
             <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden="true">📂</div>
+              <div className="empty-state-icon" aria-hidden="true"><FolderOpen size={48} /></div>
               <div style={{ fontWeight: 500 }}>No category selected</div>
               <div>Select or create a category above</div>
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden="true">👋</div>
+              <div className="empty-state-icon" aria-hidden="true"><Hand size={48} /></div>
               <div style={{ fontWeight: 500, fontSize: '16px' }}>Welcome to Gridwell</div>
               <div>Create a sidebar item to get started</div>
+              <div className="empty-state-shortcuts">
+                <kbd className="kbd">{modKey}+K</kbd> Search &nbsp;
+                <kbd className="kbd">{modKey}+S</kbd> Save &nbsp;
+                <kbd className="kbd">{modKey}+\</kbd> Toggle Sidebar
+              </div>
             </div>
           )}
         </div>
       </main>
 
-      {/* Search Modal (⌘K) */}
+      {/* Search Modal */}
       <SearchModal
         key={searchKey}
         isOpen={searchOpen}
@@ -607,7 +653,7 @@ function App() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '420px' }}>
             <h3>Unsaved Changes</h3>
             <p>
-              You have unsaved changes. Switching sidebar items will not discard your changes, but they won't be saved to a layout until you click "Save Current Layout".
+              You have unsaved changes. Switching sidebar items will not discard your changes, but they won&apos;t be saved to a layout until you click &quot;Save Current Layout&quot;.
             </p>
             <p style={{ marginTop: '12px' }}>Continue switching?</p>
             <div className="modal-actions">

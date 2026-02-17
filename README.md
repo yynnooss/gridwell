@@ -6,30 +6,34 @@ A lightweight, browser-based admin panel for organizing projects with **hierarch
 
 ## ✨ Features
 
-### 📁 Sidebar Navigation
+### Sidebar Navigation
 - Create, rename, and delete sidebar items
 - **Drag-to-reorder** sidebar items with visual drop indicators
+- **Collapsible sidebar** — toggle to icon-only mode for a focused workspace (`⌘\`)
+- Category count badges on each sidebar item
 - Each sidebar item contains its own set of categories
 - Searchable category selector with inline add/rename/delete
 - Custom in-app confirmation modals (no browser dialogs)
 
-### 📂 Categories
+### Categories
 - Organize work into named categories
 - Each category contains independent layers and tables
 - Switch between categories with unsaved-changes warnings
 
-### 📐 Layers
+### Layers
 - Add an unlimited number of layers per category
 - **Duplicate layers** with all tables and data cloned instantly
 - Resize layers by dragging the corner handle
 - Reorder layers with ▲/▼ buttons
-- Editable layer title and rich-text description (with **bold** & *italic* support)
+- Editable layer title and rich-text description (with **bold** & *italic* SVG toolbar)
 - Layers with no tables work as standalone design elements
 - Delete layers with confirmation modal
 
-### 📊 Dynamic Spreadsheet Tables
+### Dynamic Spreadsheet Tables
 - Each layer supports **0–10 tables**
 - **Duplicate tables** within a layer
+- **Collapse/expand tables** with a chevron toggle for compact views
+- **Row × Column count badges** on each table header
 - Add / remove rows and columns dynamically
 - Resize column widths and row heights by dragging borders
 - Rename column headers with double-click
@@ -38,53 +42,70 @@ A lightweight, browser-based admin panel for organizing projects with **hierarch
 - Rename tables with double-click
 - Delete tables with confirmation modal
 
-### 🔍 Global Search (⌘K)
+### Cross-Platform SVG Icon System
+- **30+ inline SVG icons** replace all emoji/unicode characters
+- Consistent rendering across macOS, Windows, and Linux
+- Icons inherit theme colors via `currentColor`
+- Zero external icon library dependencies
+
+### Breadcrumb Navigation
+- Contextual breadcrumb bar showing `Project > Item > Category`
+- Always visible at the top of the main content area
+- Active category highlighted with bold text
+
+### Global Search (⌘K)
 - Full-text search across **sidebar items, categories, layers, tables, and cell content**
 - Keyboard navigation: ↑/↓ to select, Enter to navigate, Esc to close
 - Breadcrumb trail shows the path to each result
-- Type indicators with icons (📁 📂 📐 📊 🔤)
+- SVG type indicators for each result type
 - Results limited to 20 for performance
 
-### ↩️ Undo / Redo
+### OS-Aware Keyboard Shortcuts
+- Automatically detects macOS vs. Windows/Linux
+- Displays `⌘` on Mac, `Ctrl` on Windows/Linux
+- Shortcut badges adapt throughout the entire UI
+
+### Undo / Redo
 - **Undo** with ⌘Z — reverts the last state change
 - **Redo** with ⌘⇧Z or ⌘Y — reapplies undone changes
 - History supports up to 50 steps
 
-### 🌗 Dark Mode
+### Dark Mode
 - Toggle between light and dark themes
+- **Improved contrast** in dark mode for better readability (WCAG AA)
 - Theme preference persisted in `localStorage`
 - Full design system with CSS variables for consistent theming
 
-### 📤 Export / Import
+### Export / Import
 - **Export** the entire project as a `.json` file
 - **Import** a previously exported project from a `.json` file
 - Automatic data migration on import
 
-### �️ Print / PDF Export
+### Print / PDF Export
 - Print button in toolbar + **⌘P** shortcut
 - Clean print stylesheet hides sidebar, modals, and interactive controls
 - Layers formatted at full-width for A4 printing
 - Page breaks avoid splitting layers
 
-### �💾 Save & Load Layouts
+### Save & Load Layouts
 - Save the entire project state as a named layout
 - Load any previously saved layout to restore your workspace
 - Saving with the same name overwrites the previous version
 - Delete saved layouts you no longer need
 - All data auto-saves to `localStorage` on every change — nothing is ever lost
 
-### ♿ Accessibility
+### Accessibility
 - Comprehensive **ARIA roles** and attributes throughout (`navigation`, `dialog`, `grid`, `combobox`, `listbox`, `toolbar`)
 - Keyboard-operable: category dropdown, search modal, table cells, all modals
 - **Focus management** for modals and search
 - Screen reader-friendly labels on all interactive elements
 
-### ⚡ Performance
+### Performance
 - Components wrapped in `React.memo` to prevent unnecessary re-renders
 - Event handlers stabilized with `useCallback`
 - Minimal bundle size with zero external runtime dependencies
 
-### 🛡️ Data Safety
+### Data Safety
 - **Auto-persistence** — every edit is saved to `localStorage` in real-time
 - **Unsaved changes warnings** when switching sidebar items or categories
 - **Confirmation modals** before any destructive action (delete sidebar item, category, layer, or table)
@@ -102,6 +123,7 @@ A lightweight, browser-based admin panel for organizing projects with **hierarch
 | `⌘⇧Z` / `Ctrl+Shift+Z` | Redo |
 | `⌘Y` / `Ctrl+Y` | Redo (alternate) |
 | `⌘P` / `Ctrl+P` | Print / export PDF |
+| `⌘\` / `Ctrl+\` | Toggle sidebar collapse |
 
 ---
 
@@ -114,7 +136,7 @@ A lightweight, browser-based admin panel for organizing projects with **hierarch
 | [Vite](https://vite.dev) | 7 | Build tool & dev server |
 | [ESLint](https://eslint.org) | 9 | Linting |
 
-**Zero external runtime dependencies** beyond React itself — no CSS frameworks, no state management libraries, no backend.
+**Zero external runtime dependencies** beyond React itself — no CSS frameworks, no state management libraries, no icon libraries, no backend.
 
 ---
 
@@ -171,7 +193,8 @@ gridwell/
     ├── index.css           # Design system tokens & global reset
     ├── types.ts            # TypeScript interfaces
     └── components/
-        ├── Sidebar.tsx          # Sidebar with drag-reorder, save/load
+        ├── Icons.tsx            # SVG icon library (30+ icons)
+        ├── Sidebar.tsx          # Collapsible sidebar with drag-reorder
         ├── CategorySelector.tsx # Category dropdown with search
         ├── LayerBox.tsx         # Resizable layer with multi-table support
         ├── DynamicTable.tsx     # Spreadsheet table with editable cells
@@ -214,6 +237,7 @@ All data is stored in `localStorage` under two keys:
 - ✅ **No unused dependencies** — minimal footprint
 - ✅ **Auto-migration** — old data formats are upgraded gracefully
 - ✅ **WCAG-friendly** — comprehensive ARIA attributes & keyboard navigation
+- ✅ **Cross-platform icons** — consistent SVG rendering on all OSes
 
 ---
 

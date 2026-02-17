@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import type { AppState } from '../types';
+import { Search, Folder, FolderOpen, Layers, Table, Type } from './Icons';
 
 interface SearchResult {
     type: 'sidebarItem' | 'category' | 'layer' | 'table' | 'cell';
@@ -16,6 +17,18 @@ interface SearchModalProps {
     appState: AppState;
     onNavigate: (result: SearchResult) => void;
 }
+
+const TypeIcon: React.FC<{ type: string }> = ({ type }) => {
+    const size = 16;
+    switch (type) {
+        case 'sidebarItem': return <Folder size={size} />;
+        case 'category': return <FolderOpen size={size} />;
+        case 'layer': return <Layers size={size} />;
+        case 'table': return <Table size={size} />;
+        case 'cell': return <Type size={size} />;
+        default: return <Folder size={size} />;
+    }
+};
 
 export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, appState, onNavigate }) => {
     const [query, setQuery] = useState('');
@@ -134,14 +147,6 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, appSt
         }
     }, [results, effectiveIndex, onNavigate, onClose]);
 
-    const typeIcons: Record<string, string> = {
-        sidebarItem: '📁',
-        category: '📂',
-        layer: '📐',
-        table: '📊',
-        cell: '🔤',
-    };
-
     if (!isOpen) return null;
 
     return (
@@ -157,7 +162,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, appSt
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="search-input-wrapper">
-                    <span className="search-icon" aria-hidden="true">🔍</span>
+                    <span className="search-icon" aria-hidden="true"><Search size={18} /></span>
                     <input
                         ref={inputRef}
                         type="text"
@@ -185,7 +190,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, appSt
                                     role="option"
                                     aria-selected={idx === effectiveIndex}
                                 >
-                                    <span className="search-result-icon" aria-hidden="true">{typeIcons[result.type]}</span>
+                                    <span className="search-result-icon" aria-hidden="true"><TypeIcon type={result.type} /></span>
                                     <div className="search-result-content">
                                         <div className="search-result-label">{result.label}</div>
                                         <div className="search-result-breadcrumb">{result.breadcrumb}</div>
@@ -195,7 +200,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, appSt
                             ))
                         ) : (
                             <div className="search-no-results">
-                                <span>No results for "{query}"</span>
+                                <span>No results for &quot;{query}&quot;</span>
                             </div>
                         )}
                     </div>
